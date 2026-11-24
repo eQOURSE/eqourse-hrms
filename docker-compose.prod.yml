@@ -1,15 +1,14 @@
 # Production overlay for Horilla HR (open-source).
 #
 # Usage:
-#   cp .env.dist .env   # then set strong secrets
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
-#   # or: make prod
+#   See deploy/README.md for environment setup, TLS bootstrap, and deployment.
 #
 # Requires Docker Compose v2.24+ (!override / !reset merge).
 # Does not bind-mount source code; uses image contents + named volumes.
 
 services:
   web:
+    restart: unless-stopped
     env_file:
       - .env
     environment: !override
@@ -22,7 +21,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       DB_INIT_PASSWORD: ${DB_INIT_PASSWORD:?Set DB_INIT_PASSWORD in .env}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL in .env}
-      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-0}
+      SECURE_SSL_REDIRECT: "1"
+      SECURE_HSTS_SECONDS: ${SECURE_HSTS_SECONDS:-300}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-}
       GUNICORN_LOG_LEVEL: ${GUNICORN_LOG_LEVEL:-info}
       # The client IP for login lockouts and the office-IP restriction comes
@@ -31,17 +31,17 @@ services:
     volumes: !override
       - staticfiles:/app/staticfiles
       - media:/app/media
-    # nginx is the way in and reaches web over the Docker network. Published
-    # on every interface, Django's port would bypass nginx (the login rate
-    # limit, the /metrics/ block, the security headers), so it is kept on
-    # localhost for health checks and debugging.
-    ports: !override
-      - "127.0.0.1:8000:8000"
+    ports: !reset []
+    healthcheck:
+      test: [CMD, curl, -fsS, -H, "Host: work.eqourse.com", -H, "X-Forwarded-Proto: https", "http://localhost:8000/health/"]
 
   # Single replica: see the comment on this service in docker-compose.yml.
   # Mirrors web's environment so both read the same .env, minus the HTTP-only
   # settings and with release tasks left to the web container.
   scheduler:
+    depends_on:
+      web:
+        condition: service_healthy
     env_file:
       - .env
     environment: !override
@@ -60,12 +60,14 @@ services:
       replicas: 1
 
   db:
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-horilla_db}
       POSTGRES_USER: ${POSTGRES_USER:-horilla_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
 
   redis:
+    restart: unless-stopped
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     healthcheck:
       test:
@@ -78,6 +80,14 @@ services:
         ]
 
   nginx:
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes: !override
+      - staticfiles:/static:ro
+      - ./deploy/nginx/work.eqourse.com.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/horilla-acme:/var/www/horilla-acme:ro
     # Clear the "production" profile so nginx starts with `make prod`
     # without requiring --profile production.
-    profiles: !reset
+    profiles: !reset []
