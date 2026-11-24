@@ -11,7 +11,7 @@ test -d /var/www/horilla-acme
 "${compose[@]}" build web scheduler
 # Keep the single scheduler out of the release migration window.
 "${compose[@]}" stop scheduler
-"${compose[@]}" up -d --wait --wait-timeout 900
+"${compose[@]}" up -d --wait --wait-timeout 1800
 "${compose[@]}" exec -T nginx nginx -t
 curl -fsS --max-time 15 https://work.eqourse.com/health/ >/dev/null
 "${compose[@]}" ps
