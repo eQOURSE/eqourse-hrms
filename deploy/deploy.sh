@@ -11,7 +11,9 @@ test -d /var/www/horilla-acme
 "${compose[@]}" build web scheduler
 # Keep the single scheduler out of the release migration window.
 "${compose[@]}" stop scheduler
-"${compose[@]}" up -d --wait --wait-timeout 1800
+# Wait on web, PostgreSQL, and Redis. The scheduler has no HTTP health check.
+"${compose[@]}" up -d --wait --wait-timeout 1800 web
+"${compose[@]}" up -d scheduler nginx
 "${compose[@]}" exec -T nginx nginx -t
-curl -fsS --max-time 15 https://work.eqourse.com/health/ >/dev/null
+curl -fsS --retry 5 --retry-connrefused --max-time 15 https://work.eqourse.com/health/ >/dev/null
 "${compose[@]}" ps
