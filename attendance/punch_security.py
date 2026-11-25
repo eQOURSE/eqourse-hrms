@@ -153,7 +153,7 @@ def validate_punch_evidence(request, employee, action: str):
     if not math.isfinite(accuracy) or accuracy < 0 or accuracy > accuracy_limit:
         raise PunchEvidenceError(
             _(
-                "Your GPS accuracy is too low to confirm the 50-metre office radius. "
+                "Your GPS accuracy is too low to confirm your office location. "
                 "Please move to an open area, refresh your location, and try again."
             ),
             location=(
@@ -196,9 +196,9 @@ def validate_punch_evidence(request, employee, action: str):
             raise PunchEvidenceError(
                 _(
                     "Your office location plus GPS uncertainty is outside the approved "
-                    "50-metre radius. Please refresh your location and try again. "
+                    "%(radius)s-metre radius. Please refresh your location and try again. "
                     "Remote or approved WFH staff may punch outside it."
-                ),
+                ) % {"radius": office_radius},
                 location={
                     "distance_meters": distance,
                     "accuracy_meters": accuracy,
