@@ -41,7 +41,9 @@ config["horilla-drive"] = {
     "client_id": secret["client_id"],
     "client_secret": secret["client_secret"],
     "token": json.dumps({
-        "access_token": "",
+        # rclone 1.60 treats an empty access token as legacy data and drops
+        # the refresh token. The expired timestamp forces a real refresh.
+        "access_token": "expired",
         "token_type": "Bearer",
         "refresh_token": secret["refresh_token"],
         "expiry": "1970-01-01T00:00:00Z",
