@@ -50,23 +50,6 @@ ARG SPACY_MODEL_VERSION=3.8.0
 RUN pip install --upgrade pip \
     && CMAKE_BUILD_PARALLEL_LEVEL=1 pip install --no-cache-dir -r requirements.txt
 
-# The face model package still uses pkg_resources, which current setuptools
-# no longer ships. Load the same installed model files with the standard library.
-RUN python - <<'PY'
-from importlib.metadata import distribution
-
-models = distribution("face-recognition-models")
-module = models.locate_file("face_recognition_models/__init__.py")
-source = module.read_text(encoding="utf-8")
-old_import = "from pkg_resources import resource_filename"
-if models.version != "0.3.0" or source.count(old_import) != 1:
-    raise SystemExit("Review the face model resource compatibility fix.")
-module.write_text(source.replace(old_import, """from importlib.resources import files
-
-def resource_filename(package, relative_path):
-    return str(files(package).joinpath(relative_path))"""), encoding="utf-8")
-PY
-
 # Separate step on purpose: chaining this onto the install with || would report
 # a failed pip run as a version mismatch and send the next person the wrong way.
 RUN pip show en_core_web_sm | grep -qx "Version: ${SPACY_MODEL_VERSION}" \
@@ -120,7 +103,10 @@ RUN useradd --create-home --uid 1000 appuser
 
 # Copy virtual environment from builder stage WITH correct ownership
 COPY --from=builder --chown=appuser:appuser /opt/venv /opt/venv
-RUN python -c 'import face_recognition'
+COPY docker/patch_face_models.py /tmp/patch_face_models.py
+RUN python /tmp/patch_face_models.py \
+    && rm /tmp/patch_face_models.py \
+    && python -c 'import face_recognition_models, face_recognition; assert callable(face_recognition.face_encodings); print("face runtime ready")' | grep -Fx 'face runtime ready'
 
 WORKDIR /app
 
