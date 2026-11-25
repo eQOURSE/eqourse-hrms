@@ -26,6 +26,10 @@
         .dark .ess-dashboard {
             background: #000000;
         }
+        @media (max-width: 767px) {
+            .ess-dashboard { margin: 0; padding: 0; min-width: 0; }
+            .ess-dashboard .ess-period-picker input[type="date"] { max-width: 46%; min-width: 0; }
+        }
 
         /* ── Header ── */
         .ess-header {

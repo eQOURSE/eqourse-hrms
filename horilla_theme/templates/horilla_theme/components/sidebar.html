@@ -523,11 +523,68 @@
             display: none !important;
         }
     }
+    .eqourse-mobile-menu, #mobileSidebarClose, #mobileSidebarBackdrop { display: none; }
+
+    @media (max-width: 767px) {
+        .eqourse-mobile-menu, #mobileSidebarClose {
+            display: inline-grid;
+            place-items: center;
+            flex: 0 0 2.75rem;
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: .6rem;
+        }
+        #sidebar { visibility: hidden; }
+        #sidebar.mobile-sidebar-open { visibility: visible; width: min(17rem, 82vw) !important; }
+        #sidebar.mobile-sidebar-open > div > div:first-child { justify-content: space-between !important; }
+        #sidebar.mobile-sidebar-open .sideboxmain {
+            width: 100% !important;
+            padding: 0 .75rem !important;
+            gap: .65rem !important;
+            justify-content: flex-start !important;
+            border-radius: .5rem !important;
+        }
+        #sidebar.mobile-sidebar-open .oh-sidebar-label,
+        #sidebar.mobile-sidebar-open .sidebar-chevron {
+            flex: 0 1 auto !important;
+            width: auto !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+        #sidebar.mobile-sidebar-open .sidebar-item.mobile-subnav-open .sidebar-subnav { display: block !important; }
+        #sidebar #sidebarPinBtn, #sidebarFlyout { display: none !important; }
+        #mobileSidebarBackdrop:not([hidden]) {
+            display: block;
+            position: fixed;
+            inset: 0;
+            z-index: 49;
+            background: rgb(0 0 0 / 45%);
+        }
+        .oh-main-content, #sidebar.sidebar-pinned ~ .oh-main-content { margin-left: 0 !important; }
+        .oh-main-header, #sidebar.sidebar-pinned ~ .oh-main-content .oh-main-header {
+            left: 0 !important;
+            right: 0;
+            gap: .25rem;
+            min-height: 4rem;
+            padding: .5rem .65rem;
+        }
+        #mainHeader #breadcrumbs-container { display: none; }
+        #mainHeader .eqourse-header-actions { margin-left: auto; gap: .45rem; }
+        #mainHeader .eqourse-header-actions > div:first-child { gap: .4rem; }
+        #mainHeader .eqourse-header-actions > div:first-child > .dropdown-wrapper { display: none; }
+        #mainHeader .eqourse-punch-btn { white-space: nowrap; margin-right: 0; min-height: 2.75rem; }
+        #mainHeader #themeToggleButton { width: 2.5rem; height: 2.5rem; }
+        #sidebar ~ #floating-buttons .fab-container,
+        #sidebar.sidebar-pinned ~ #floating-buttons .fab-container { left: 0 !important; }
+        #ohMainContent { padding: 4.75rem .75rem 1rem; min-width: 0; }
+    }
 </style>
+<button id="mobileSidebarBackdrop" type="button" hidden tabindex="-1" aria-label="{% trans 'Close navigation' %}"></button>
 <div id="sidebar" class="fixed inset-y-0 left-0 bg-white border-r border-r-dark-50 z-50">
     <div class="p-4">
         <!-- Header: hamburger pin toggle + company logo -->
         <div class="flex items-center gap-3 mb-6">
+            <button id="mobileSidebarClose" type="button" aria-label="{% trans 'Close navigation' %}"><i class="fas fa-times" aria-hidden="true"></i></button>
             <button
                 id="sidebarPinBtn"
                 title="{% trans 'Lock sidebar open' %}"
@@ -570,8 +627,8 @@
             <div class="flex items-center gap-2 min-w-0 flex-1">
                 {% if request.session.selected_company_instance %}
                     <img
-                        src="{% if request.session.selected_company_instance.icon and request.session.selected_company_instance.icon != '/404/' %}{{ request.session.selected_company_instance.icon }}{% else %}/static/horilla_theme/assets/img/horilla-logo.png{% endif %}"
-                        class="oh-sidebar-label w-7 h-7 rounded-full flex-shrink-0"
+                        src="{% if request.session.selected_company_instance.icon and request.session.selected_company_instance.icon != '/404/' %}{{ request.session.selected_company_instance.icon }}{% else %}{% static 'images/ui/eqourse-logo.webp' %}{% endif %}"
+                        class="oh-sidebar-label w-7 h-7 object-contain flex-shrink-0"
                         title="{{ request.session.selected_company_instance.company }}"
                         alt="{{ request.session.selected_company_instance.company }}"
                     >
@@ -586,9 +643,9 @@
                     </div>
                 {% else %}
                     <img
-                        src="{% if request.user.employee_get.employee_work_info.company_id.icon %}{{ request.user.employee_get.employee_work_info.company_id.icon.url }}{% else %}/static/horilla_theme/assets/img/horilla-logo.png{% endif %}"
+                        src="{% if request.user.employee_get.employee_work_info.company_id.icon %}{{ request.user.employee_get.employee_work_info.company_id.icon.url }}{% else %}{% static 'images/ui/eqourse-logo.webp' %}{% endif %}"
                         alt="{% trans 'Company logo' %}"
-                        class="oh-sidebar-label w-7 h-7 rounded-full flex-shrink-0"
+                        class="oh-sidebar-label w-7 h-7 object-contain flex-shrink-0"
                     >
                     <div class="oh-sidebar__company-details oh-sidebar-label min-w-0">
                         <span
@@ -1047,6 +1104,31 @@
         // ── Sidebar pin / collapse toggle ────────────────────────────────────
 
         var sidebarEl = document.getElementById("sidebar");
+        var mobileSidebar = window.matchMedia("(max-width: 767px)");
+        var mobileToggle = document.getElementById("mobileSidebarToggle");
+        var mobileClose = document.getElementById("mobileSidebarClose");
+        var mobileBackdrop = document.getElementById("mobileSidebarBackdrop");
+
+        function setMobileSidebar(open, restoreFocus) {
+          if (!mobileToggle || !mobileClose || !mobileBackdrop) return;
+          sidebarEl.classList.toggle("mobile-sidebar-open", open);
+          mobileToggle.setAttribute("aria-expanded", String(open));
+          mobileBackdrop.hidden = !open;
+          if (open) mobileClose.focus();
+          if (!open && restoreFocus && mobileSidebar.matches) mobileToggle.focus();
+        }
+        if (mobileToggle) mobileToggle.addEventListener("click", function () { setMobileSidebar(true); });
+        if (mobileClose) mobileClose.addEventListener("click", function () { setMobileSidebar(false, true); });
+        if (mobileBackdrop) mobileBackdrop.addEventListener("click", function () { setMobileSidebar(false, true); });
+        mobileSidebar.addEventListener("change", function () { setMobileSidebar(false); });
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape" && sidebarEl.classList.contains("mobile-sidebar-open")) {
+            setMobileSidebar(false, true);
+          }
+        });
+        sidebarEl.addEventListener("click", function (event) {
+          if (mobileSidebar.matches && event.target.closest("nav a")) setMobileSidebar(false, true);
+        }, true);
 
         var sidebarPinned = true; // default: pinned open
         try { var _stored = localStorage.getItem("sidebarPinned"); if (_stored !== null) sidebarPinned = _stored === "true"; } catch (_) {}
@@ -1245,6 +1327,10 @@
             var btn = e.target.closest(".sideboxmain");
             if (!btn) return;
             e.stopPropagation();
+            if (mobileSidebar.matches) {
+              var item = btn.closest(".sidebar-item");
+              if (item) btn.setAttribute("aria-expanded", String(item.classList.toggle("mobile-subnav-open")));
+            }
           });
         }
 

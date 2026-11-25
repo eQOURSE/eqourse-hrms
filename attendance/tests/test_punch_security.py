@@ -109,10 +109,13 @@ class PunchEvidenceTests(TestCase):
         self, _remote, verify, distance
     ):
         distance.return_value.meters = 49
-        with self.assertRaisesRegex(PunchEvidenceError, "GPS uncertainty"):
+        with self.assertRaisesRegex(PunchEvidenceError, "GPS uncertainty") as failure:
             validate_punch_evidence(
                 self.request(accuracy="25"), self.employee, "check-in"
             )
+        self.assertEqual(failure.exception.location, {
+            "distance_meters": 49, "accuracy_meters": 25, "radius_meters": 50,
+        })
         verify.assert_called_once()
 
     @patch("attendance.punch_security.geodesic")
@@ -122,10 +125,13 @@ class PunchEvidenceTests(TestCase):
         self, _remote, verify, distance
     ):
         distance.return_value.meters = 49
-        with self.assertRaisesRegex(PunchEvidenceError, "GPS uncertainty"):
+        with self.assertRaisesRegex(PunchEvidenceError, "GPS uncertainty") as failure:
             validate_punch_evidence(
                 self.request(accuracy="25"), self.employee, "check-out"
             )
+        self.assertEqual(failure.exception.location, {
+            "distance_meters": 49, "accuracy_meters": 25, "radius_meters": 50,
+        })
         verify.assert_called_once()
 
     @patch("attendance.punch_security.verify_employee_face")
@@ -161,10 +167,13 @@ class PunchEvidenceTests(TestCase):
     @patch("attendance.punch_security.verify_employee_face")
     @patch("attendance.punch_security.is_remote_workday", return_value=False)
     def test_poor_gps_accuracy_is_rejected(self, _remote, verify):
-        with self.assertRaisesRegex(PunchEvidenceError, "GPS accuracy"):
+        with self.assertRaisesRegex(PunchEvidenceError, "GPS accuracy") as failure:
             validate_punch_evidence(
                 self.request(accuracy="26"), self.employee, "check-in"
             )
+        self.assertEqual(failure.exception.location, {
+            "accuracy_meters": 26, "accuracy_limit_meters": 25,
+        })
         verify.assert_not_called()
 
     @patch("attendance.punch_security.verify_employee_face")

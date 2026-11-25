@@ -20,6 +20,10 @@ from geofencing.models import GeoFencing
 class PunchEvidenceError(Exception):
     """A user-actionable reason why a punch must be rejected."""
 
+    def __init__(self, message, *, location=None):
+        super().__init__(message)
+        self.location = location
+
 
 def _value(request, key):
     data = getattr(request, "data", None)
@@ -145,14 +149,18 @@ def validate_punch_evidence(request, employee, action: str):
                 "Please refresh your location and try again."
             )
         )
-    if not math.isfinite(accuracy) or accuracy < 0 or accuracy > getattr(
-        settings, "PUNCH_LOCATION_MAX_ACCURACY_METERS", 25
-    ):
+    accuracy_limit = getattr(settings, "PUNCH_LOCATION_MAX_ACCURACY_METERS", 25)
+    if not math.isfinite(accuracy) or accuracy < 0 or accuracy > accuracy_limit:
         raise PunchEvidenceError(
             _(
                 "Your GPS accuracy is too low to confirm the 50-metre office radius. "
                 "Please move to an open area, refresh your location, and try again."
-            )
+            ),
+            location=(
+                {"accuracy_meters": accuracy, "accuracy_limit_meters": accuracy_limit}
+                if math.isfinite(accuracy) and accuracy >= 0
+                else None
+            ),
         )
 
     try:
@@ -190,7 +198,12 @@ def validate_punch_evidence(request, employee, action: str):
                     "Your office location plus GPS uncertainty is outside the approved "
                     "50-metre radius. Please refresh your location and try again. "
                     "Remote or approved WFH staff may punch outside it."
-                )
+                ),
+                location={
+                    "distance_meters": distance,
+                    "accuracy_meters": accuracy,
+                    "radius_meters": office_radius,
+                },
             )
 
     location = reverse_geocode(latitude, longitude, required=False)

@@ -1,4 +1,4 @@
-{% load horillafilters attendancefilters i18n %}
+{% load static horillafilters attendancefilters i18n %}
 {% if request.user.employee_get %}
     {% with get_forecasted_at_work=request.user.employee_get.get_forecasted_at_work %}
         {% if request.session.selected_company == "all" or request.user.employee_get.employee_work_info.company_id.id == request.session.selected_company|default:"-1"|add:"0" %}
@@ -30,54 +30,27 @@
     {% endwith %}
 {% endif %}
 
-<script>
-    // The server repeats both checks; this code only captures fresh evidence.
-    if (!window.__eqoursePunchBound) {
-        window.__eqoursePunchBound = true;
-        const punchError = (message) => window.Swal
-            ? Swal.fire({title: "{% trans 'Attendance not recorded'|escapejs %}", text: message, icon: "error"})
-            : window.alert(message);
-        const freshPosition = () => new Promise((resolve, reject) => {
-            if (!navigator.geolocation) return reject(new Error("Location access is required for attendance."));
-            navigator.geolocation.getCurrentPosition(resolve, () => reject(new Error("Location permission is required for attendance.")), {enableHighAccuracy: true, maximumAge: 0, timeout: 15000});
-        });
-        const liveFace = async () => {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("Camera access is required for attendance.");
-            const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "user"}, audio: false});
-            try {
-                const video = document.createElement("video");
-                video.muted = true; video.playsInline = true; video.srcObject = stream;
-                await video.play();
-                await new Promise((resolve) => setTimeout(resolve, 250));
-                const canvas = document.createElement("canvas");
-                canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-                if (!canvas.width || !canvas.height) throw new Error("The camera did not return an image.");
-                canvas.getContext("2d").drawImage(video, 0, 0);
-                return await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
-            } finally { stream.getTracks().forEach((track) => track.stop()); }
-        };
-        document.addEventListener("click", async (event) => {
-            const button = event.target.closest(".eqourse-punch-btn");
-            if (!button || button.disabled) return;
-            event.preventDefault(); button.disabled = true;
-            try {
-                const [position, face] = await Promise.all([freshPosition(), liveFace()]);
-                if (!face) throw new Error("Camera evidence is required for attendance.");
-                const form = new FormData();
-                form.append("face_image", face, "attendance-face.jpg");
-                form.append("latitude", position.coords.latitude);
-                form.append("longitude", position.coords.longitude);
-                form.append("accuracy", position.coords.accuracy || "");
-                form.append("location_timestamp", position.timestamp);
-                const response = await fetch(button.dataset.punchUrl, {method: "POST", body: form, credentials: "same-origin", headers: {"HX-Request": "true", "X-Punch-Client": "1", "X-CSRFToken": button.dataset.csrf}});
-                const contentType = response.headers.get("content-type") || "";
-                if (!response.ok) {
-                    const payload = contentType.includes("application/json") ? await response.json() : {};
-                    throw new Error(payload.error || "Attendance could not be recorded. Please try again.");
-                }
-                document.querySelector("#attendance-activity-container").innerHTML = await response.text();
-            } catch (error) { punchError(error.message || "Attendance could not be recorded. Please try again."); }
-            finally { button.disabled = false; }
-        });
-    }
-</script>
+<link rel="stylesheet" href="{% static 'attendance/mobile-punch.css' %}">
+<script src="{% static 'attendance/mobile-punch.js' %}" defer></script>
+<template id="eqourse-punch-template">
+    <dialog class="eqourse-punch-dialog" aria-labelledby="eqourse-punch-title">
+        <h2 id="eqourse-punch-title"></h2>
+        <p>{% trans "Frame your face in the preview, then take and review your photo." %}</p>
+        <div class="eqourse-punch-preview">
+            <video autoplay playsinline muted aria-label="{% trans 'Live camera preview' %}"></video>
+            <img hidden alt="{% trans 'Photo to submit for attendance' %}">
+        </div>
+        <p data-camera-status role="status"></p>
+        <div class="eqourse-punch-location">
+            <p data-location-status role="status"></p>
+            <button type="button" data-retry-location>{% trans "Retry location" %}</button>
+        </div>
+        <p data-punch-error role="alert" hidden></p>
+        <div class="eqourse-punch-actions">
+            <button type="button" data-close-punch>{% trans "Cancel" %}</button>
+            <button type="button" data-take-photo disabled>{% trans "Take photo" %}</button>
+            <button type="button" data-retake-photo hidden>{% trans "Retake" %}</button>
+            <button type="button" data-submit-punch disabled>{% trans "Submit" %}</button>
+        </div>
+    </dialog>
+</template>

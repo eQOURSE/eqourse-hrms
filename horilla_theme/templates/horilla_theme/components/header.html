@@ -25,13 +25,16 @@
 </style>
 
 <div id="mainHeader" class="oh-main-header flex justify-between items-center bg-white py-3 px-5 border-b border-b-dark-50 fixed z-40">
+    <button class="eqourse-mobile-menu" type="button" id="mobileSidebarToggle" aria-controls="sidebar" aria-expanded="false" aria-label="{% trans 'Open navigation' %}">
+        <i class="fas fa-bars" aria-hidden="true"></i>
+    </button>
     <div id="breadcrumbs-container">
         {% if breadcrumbs %}
             {% include "base/navbar_components/breadcrumbs_view.html" %}
         {% endif %}
     </div>
 
-    <div class="flex items-center gap-8">
+    <div class="eqourse-header-actions flex items-center gap-8">
         <!-- Action Icons -->
         <div class="flex items-center gap-2">
             {% if "attendance"|app_installed %}

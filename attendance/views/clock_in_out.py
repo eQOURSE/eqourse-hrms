@@ -218,7 +218,10 @@ def clock_in_attendance_and_activity(
 def _punch_error_response(request, message, status=400):
     """Return JSON to the secure browser client and preserve legacy redirects."""
     if request.headers.get("X-Punch-Client") == "1":
-        return JsonResponse({"error": str(message)}, status=status)
+        payload = {"error": str(message)}
+        if isinstance(message, PunchEvidenceError) and message.location is not None:
+            payload["location"] = message.location
+        return JsonResponse(payload, status=status)
     messages.error(request, message)
     return HorillaRedirect(request)
 
