@@ -137,6 +137,22 @@ def validate_punch_evidence(request, employee, action: str):
         accuracy = float(_value(request, "accuracy")) if _value(request, "accuracy") else None
     except (TypeError, ValueError):
         accuracy = None
+    if accuracy is None:
+        raise PunchEvidenceError(
+            _(
+                "GPS accuracy is required to confirm the office location. "
+                "Please refresh your location and try again."
+            )
+        )
+    if accuracy < 0 or accuracy > getattr(
+        settings, "PUNCH_LOCATION_MAX_ACCURACY_METERS", 25
+    ):
+        raise PunchEvidenceError(
+            _(
+                "Your GPS accuracy is too low to confirm the 50-metre office radius. "
+                "Please move to an open area, refresh your location, and try again."
+            )
+        )
 
     try:
         verify_employee_face(employee, _uploaded_image(request))
@@ -147,11 +163,27 @@ def validate_punch_evidence(request, employee, action: str):
     company = employee.get_company()
     fence = GeoFencing.for_company(company) if company else None
     distance = None
+    if not remote_authorized and (fence is None or not fence.start):
+        raise PunchEvidenceError(
+            _(
+                "The office geofence is missing or disabled. Onsite attendance is "
+                "blocked until HR enables the approved office fence."
+            )
+        )
     if fence and fence.start:
+        office_latitude = getattr(
+            settings, "OFFICE_GEOFENCE_LATITUDE", 25.14402
+        )
+        office_longitude = getattr(
+            settings, "OFFICE_GEOFENCE_LONGITUDE", 75.84506
+        )
+        office_radius = getattr(
+            settings, "OFFICE_GEOFENCE_RADIUS_METERS", 50
+        )
         distance = geodesic(
-            (fence.latitude, fence.longitude), (latitude, longitude)
+            (office_latitude, office_longitude), (latitude, longitude)
         ).meters
-        if not remote_authorized and distance > fence.radius_in_meters:
+        if not remote_authorized and distance > office_radius:
             raise PunchEvidenceError(
                 _(
                     "Check-in/out is only allowed within the approved office radius. "

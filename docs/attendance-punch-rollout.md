@@ -8,8 +8,11 @@ may be outside that fence. The captured latitude, longitude, accuracy, and
 timestamp are stored separately for check-in and check-out on both attendance
 records and activity records.
 
-Google Maps Geocoding API resolves the approved office pin and reverse-geocodes
-each captured punch coordinate to a reviewable formatted address and place id.
+The approved eQOURSE Work office pin for this rollout is `25.14402, 75.84506`
+with a 50-metre radius. Punch enforcement uses these configured values, while
+the enabled company fence record is also required as the HR switch. Google Maps
+Geocoding API resolves that approved office pin and reverse-geocodes each
+captured punch coordinate to a reviewable formatted address and place id.
 The device-provided coordinates remain the source of truth for radius checks;
 the Google response is descriptive metadata, not a substitute for GPS evidence.
 
@@ -18,13 +21,15 @@ the Google response is descriptive metadata, not a substitute for GPS evidence.
 The web portal and native app must submit these fields to the existing punch
 endpoints:
 
-- `latitude`, `longitude`, `accuracy`
+- `latitude`, `longitude`, `accuracy` (reported accuracy must be 25 metres or
+  better for the office test)
 - `location_timestamp` (Unix milliseconds or an ISO-8601 timestamp)
 - `face_image` (a live camera capture, not the stored profile photo)
 
-The server rejects missing, malformed, or stale GPS, missing face evidence, a
-face mismatch, and an office location outside the active radius. A rejected
-punch leaves attendance unchanged and returns an actionable error message.
+The server rejects missing, malformed, stale, or imprecise GPS, missing face
+evidence, a face mismatch, a missing/disabled office fence, and an office
+location outside the active 50-metre radius. A rejected punch leaves attendance
+unchanged and returns an actionable error message.
 
 ## Release order
 
@@ -39,7 +44,8 @@ punch leaves attendance unchanged and returns an actionable error message.
 Configure `GOOGLE_MAPS_API_KEY` on the server before enabling location review.
 Restrict the key to the Geocoding API and keep it out of source control.
 
-The native app repository was not present in this checkout, so this PR contains
+The employee-facing logo is the official asset sourced from
+`https://www.eqourse.com/`. The native app repository was not present in this checkout, so this PR contains
 the server contract and web client only. Do not make the server enforcement
 mandatory for native users until the companion app release has been reviewed by
 Bhavesh and verified against these endpoints.
@@ -48,8 +54,14 @@ Bhavesh and verified against these endpoints.
 
 - Office check-in and check-out inside the configured radius: accepted.
 - Office check-in and check-out outside the configured radius: rejected.
+- Missing or disabled office fence: rejected with a clear configuration message.
+- GPS accuracy above 25 metres or missing accuracy: rejected with a retry message.
 - Approved WFH/remote check-in and check-out outside the radius: accepted, with
   actual locations saved separately.
 - Face mismatch or missing face evidence: rejected without changing attendance.
+- Manual spoof-resistance check: try a printed approved photo and the same photo
+  displayed on another phone for both check-in and check-out. If either spoof is
+  accepted, do not use official attendance until a liveness challenge is enabled
+  and verified; this PR does not claim liveness from face matching alone.
 - Denied camera or location permission, stale GPS, and missing GPS: rejected with
   a clear message.

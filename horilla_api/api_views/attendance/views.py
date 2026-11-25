@@ -72,8 +72,9 @@ def geofence_denial(request):
     the fence exists to stop. An enabled fence that cannot be evaluated now
     denies instead.
 
-    A company with no ``GeoFencing`` row, or one whose fence is switched off, is
-    not using the feature: there is nothing to enforce and the punch proceeds.
+    A company with no ``GeoFencing`` row, or one whose fence is switched off,
+    blocks onsite punches. HR must configure and enable the approved office
+    fence before attendance can be recorded.
     """
     # Each lookup is resolved separately and on its own terms. An earlier
     # version wrapped the lot in `except (ObjectDoesNotExist, AttributeError)`,
@@ -95,11 +96,16 @@ def geofence_denial(request):
 
     geo_fencing = GeoFencing.for_company(company)
     if geo_fencing is None:
-        # No GeoFencing row at all: the feature is not in use here.
-        return None
+        return Response(
+            {"error": _("The office geofence is missing or disabled. Onsite attendance is blocked.")},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     if not geo_fencing.start:
-        return None
+        return Response(
+            {"error": _("The office geofence is missing or disabled. Onsite attendance is blocked.")},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     from geofencing.views import GeoFencingEmployeeLocationCheckAPIView
 

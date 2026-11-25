@@ -206,7 +206,10 @@ def geofence_denial_web(request, company):
         return None
     fence = GeoFencing.for_company(company)
     if fence is None or not fence.start:
-        return None
+        return _(
+            "The office geofence is missing or disabled. Onsite attendance is "
+            "blocked until HR enables the approved office fence."
+        )
 
     try:
         latitude = float(request.GET.get("latitude"))

@@ -67,16 +67,18 @@ class GeofenceFailClosedTests(SimpleTestCase):
         with patch(LOCATION_CHECK, return_value=SimpleNamespace(status_code=200)):
             self.assertIsNone(geofence_denial(req))
 
-    def test_disabled_fence_skips_the_check_entirely(self):
-        """start=False means the feature is off -- no location call at all."""
+    def test_disabled_fence_blocks_without_location_call(self):
+        """start=False must fail closed without trying to evaluate coordinates."""
         req = _Req(_company(SimpleNamespace(start=False)))
         with patch(LOCATION_CHECK) as location_check:
-            self.assertIsNone(geofence_denial(req))
+            denial = geofence_denial(req)
+        self.assertEqual(denial.status_code, 400)
         location_check.assert_not_called()
 
-    def test_unconfigured_fence_allows(self):
-        """Installs with no GeoFencing row must keep punching normally."""
-        self.assertIsNone(geofence_denial(_Req(_company(None))))
+    def test_unconfigured_fence_blocks(self):
+        """An onsite punch cannot proceed without an active office fence."""
+        denial = geofence_denial(_Req(_company(None)))
+        self.assertEqual(denial.status_code, 400)
 
     def test_no_company_allows(self):
         """No company means no fence to enforce; not a denial."""

@@ -97,12 +97,12 @@ class GeofenceDenialWebTests(TestCase):
             nominatim_cls.return_value.reverse.return_value = MagicMock()
             return GeoFencing.objects.create(**fields)
 
-    def test_no_geofence_row_never_blocks(self):
-        self.assertIsNone(geofence_denial_web(self._request(), self.company))
+    def test_no_geofence_row_blocks_onsite_punches(self):
+        self.assertIsNotNone(geofence_denial_web(self._request(), self.company))
 
-    def test_disabled_fence_never_blocks(self):
+    def test_disabled_fence_blocks_onsite_punches(self):
         self._fence(start=False)
-        self.assertIsNone(geofence_denial_web(self._request(), self.company))
+        self.assertIsNotNone(geofence_denial_web(self._request(), self.company))
 
     def test_enabled_fence_with_no_coordinates_submitted_fails_closed(self):
         # The web page previously never sent coordinates at all -- the whole

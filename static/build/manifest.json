@@ -6,5 +6,5 @@
     "display": "standalone",
     "background_color": "orangered",
     "theme_color": "orangered",
-    "icons": [{"src": "/static/images/ui/eqourse-logo.svg", "sizes": "any", "type": "image/svg+xml"}]
+    "icons": [{"src": "/static/images/ui/eqourse-logo.webp", "sizes": "any", "type": "image/webp"}]
   }
