@@ -17,6 +17,7 @@ RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         build-essential \
+        cmake \
         libpq-dev \
         libjpeg-dev \
         zlib1g-dev \
@@ -47,7 +48,24 @@ ARG SPACY_MODEL_VERSION=3.8.0
 # gunicorn and psycopg2-binary are pinned in requirements.txt -- do not repeat
 # them here, an unpinned CLI copy silently overrides the pin.
 RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && CMAKE_BUILD_PARALLEL_LEVEL=1 pip install --no-cache-dir -r requirements.txt
+
+# The face model package still uses pkg_resources, which current setuptools
+# no longer ships. Load the same installed model files with the standard library.
+RUN python - <<'PY'
+from importlib.metadata import distribution
+
+models = distribution("face-recognition-models")
+module = models.locate_file("face_recognition_models/__init__.py")
+source = module.read_text(encoding="utf-8")
+old_import = "from pkg_resources import resource_filename"
+if models.version != "0.3.0" or source.count(old_import) != 1:
+    raise SystemExit("Review the face model resource compatibility fix.")
+module.write_text(source.replace(old_import, """from importlib.resources import files
+
+def resource_filename(package, relative_path):
+    return str(files(package).joinpath(relative_path))"""), encoding="utf-8")
+PY
 
 # Separate step on purpose: chaining this onto the install with || would report
 # a failed pip run as a version mismatch and send the next person the wrong way.
@@ -102,6 +120,7 @@ RUN useradd --create-home --uid 1000 appuser
 
 # Copy virtual environment from builder stage WITH correct ownership
 COPY --from=builder --chown=appuser:appuser /opt/venv /opt/venv
+RUN python -c 'import face_recognition'
 
 WORKDIR /app
 
