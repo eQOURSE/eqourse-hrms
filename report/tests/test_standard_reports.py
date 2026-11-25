@@ -386,7 +386,7 @@ class ExportTests(SimpleTestCase):
                     "logo_path": None,
                 },
                 "user": "Admin",
-                "product_name": "Horilla HR · Standard Reports",
+                "product_name": "eQOURSE Work · Standard Reports",
                 "filters_label": "This month · Active",
                 "slug": "workforce-composition",
                 "domain": "workforce",

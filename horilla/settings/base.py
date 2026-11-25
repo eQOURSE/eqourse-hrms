@@ -449,6 +449,13 @@ DJANGO_NOTIFICATIONS_CONFIG = {
 # HORILLA-SPECIFIC SETTINGS
 # ========================================
 WHITE_LABELLING = False
+
+# eQOURSE Work attendance security is enforced for every employee punch.  The
+# company-specific face/geofence configuration still controls the approved
+# reference data and office boundary; this flag is deliberately not exposed
+# as a runtime bypass.
+FACE_MATCH_TOLERANCE = env.float("FACE_MATCH_TOLERANCE", default=0.48)
+PUNCH_LOCATION_MAX_AGE_SECONDS = env.int("PUNCH_LOCATION_MAX_AGE_SECONDS", default=120)
 NESTED_SUBORDINATE_VISIBILITY = False
 TWO_FACTORS_AUTHENTICATION = False
 # When True, /ready/ returns 503 until run_scheduler has registered jobs.

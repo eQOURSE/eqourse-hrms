@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta
 
 from django.contrib import messages
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -37,6 +37,7 @@ from attendance.models import (
     AttendanceLateComeEarlyOut,
     GraceTime,
 )
+from attendance.punch_security import PunchEvidenceError, validate_punch_evidence
 from attendance.views.views import attendance_validate
 from base.context_processors import (
     enable_late_come_early_out_tracking,
@@ -131,6 +132,7 @@ def clock_in_attendance_and_activity(
     start_time,
     end_time,
     in_datetime,
+    punch_evidence=None,
 ):
     """
     This method is used to create attendance activity or attendance when an employee clocks-in
@@ -167,6 +169,10 @@ def clock_in_attendance_and_activity(
         shift_day=day,
         clock_in=in_datetime,
         in_datetime=in_datetime,
+        clock_in_latitude=(punch_evidence or {}).get("latitude"),
+        clock_in_longitude=(punch_evidence or {}).get("longitude"),
+        clock_in_accuracy=(punch_evidence or {}).get("accuracy"),
+        clock_in_location_at=(punch_evidence or {}).get("captured_at"),
     )
     # create attendance if not exist
     attendance = Attendance.objects.filter(
@@ -182,6 +188,10 @@ def clock_in_attendance_and_activity(
         attendance.attendance_clock_in = now
         attendance.attendance_clock_in_date = date_today
         attendance.minimum_hour = minimum_hour
+        attendance.clock_in_latitude = (punch_evidence or {}).get("latitude")
+        attendance.clock_in_longitude = (punch_evidence or {}).get("longitude")
+        attendance.clock_in_accuracy = (punch_evidence or {}).get("accuracy")
+        attendance.clock_in_location_at = (punch_evidence or {}).get("captured_at")
         attendance.save()
         # check here late come or not
 
@@ -199,6 +209,14 @@ def clock_in_attendance_and_activity(
         if early_out_instance.exists():
             early_out_instance[0].delete()
     return attendance
+
+
+def _punch_error_response(request, message, status=400):
+    """Return JSON to the secure browser client and preserve legacy redirects."""
+    if request.headers.get("X-Punch-Client") == "1":
+        return JsonResponse({"error": str(message)}, status=status)
+    messages.error(request, message)
+    return HorillaRedirect(request)
 
 
 @login_required
@@ -261,16 +279,18 @@ def clock_in(request):
                 )
                 return HorillaRedirect(request)
 
-        if not request.__dict__.get("datetime"):
-            # The mobile/API clock-in already enforces a configured
-            # geo-fence; this view didn't, so an employee outside the fence
-            # could still punch in from a browser.
-            geofence_error = geofence_denial_web(request, company)
-            if geofence_error:
-                messages.error(request, geofence_error)
-                return HorillaRedirect(request)
-
         employee, work_info = employee_exists(request)
+        punch_evidence = request.__dict__.get("punch_evidence")
+        if not request.__dict__.get("datetime") and punch_evidence is None:
+            if not employee:
+                return _punch_error_response(
+                    request,
+                    _("Check-in is unavailable until your employee profile is complete."),
+                )
+            try:
+                punch_evidence = validate_punch_evidence(request, employee, "check-in")
+            except PunchEvidenceError as exc:
+                return _punch_error_response(request, exc)
         datetime_now = timezone.localtime()
         if request.__dict__.get("datetime"):
             datetime_now = request.datetime
@@ -318,6 +338,7 @@ def clock_in(request):
                 start_time=start_time_sec,
                 end_time=end_time_sec,
                 in_datetime=datetime_now,
+                punch_evidence=punch_evidence,
             )
             # Refresh employee from DB so template re-evaluates is_clocked_in correctly
             employee.refresh_from_db()
@@ -341,7 +362,9 @@ def clock_in(request):
         return HorillaRedirect(request)
 
 
-def clock_out_attendance_and_activity(employee, date_today, now, out_datetime=None):
+def clock_out_attendance_and_activity(
+    employee, date_today, now, out_datetime=None, punch_evidence=None
+):
     """
     Clock out the attendance and activity
     args:
@@ -362,6 +385,12 @@ def clock_out_attendance_and_activity(employee, date_today, now, out_datetime=No
         attendance_activity.clock_out = out_datetime
         attendance_activity.clock_out_date = date_today
         attendance_activity.out_datetime = out_datetime
+        attendance_activity.clock_out_latitude = (punch_evidence or {}).get("latitude")
+        attendance_activity.clock_out_longitude = (punch_evidence or {}).get("longitude")
+        attendance_activity.clock_out_accuracy = (punch_evidence or {}).get("accuracy")
+        attendance_activity.clock_out_location_at = (punch_evidence or {}).get(
+            "captured_at"
+        )
         attendance_activity.save()
 
         attendance_activities = attendance_activities.filter(
@@ -384,6 +413,10 @@ def clock_out_attendance_and_activity(employee, date_today, now, out_datetime=No
         )[0]
         attendance.attendance_clock_out = now + ":00"
         attendance.attendance_clock_out_date = date_today
+        attendance.clock_out_latitude = (punch_evidence or {}).get("latitude")
+        attendance.clock_out_longitude = (punch_evidence or {}).get("longitude")
+        attendance.clock_out_accuracy = (punch_evidence or {}).get("accuracy")
+        attendance.clock_out_location_at = (punch_evidence or {}).get("captured_at")
         attendance.attendance_worked_hour = duration
         # Overtime calculation
         attendance.attendance_overtime = overtime_calculation(attendance)
@@ -528,16 +561,29 @@ def clock_out(request):
                 )
                 return HorillaRedirect(request)
 
-        if not request.__dict__.get("datetime"):
-            geofence_error = geofence_denial_web(request, company)
-            if geofence_error:
-                messages.error(request, geofence_error)
-                return HorillaRedirect(request)
-
         datetime_now = timezone.localtime()
         if request.__dict__.get("datetime"):
             datetime_now = request.datetime
         employee, work_info = employee_exists(request)
+        punch_evidence = request.__dict__.get("punch_evidence")
+        if not request.__dict__.get("datetime") and punch_evidence is None:
+            if not employee:
+                return _punch_error_response(
+                    request,
+                    _("Check-out is unavailable until your employee profile is complete."),
+                )
+            try:
+                punch_evidence = validate_punch_evidence(request, employee, "check-out")
+            except PunchEvidenceError as exc:
+                return _punch_error_response(request, exc)
+        if not employee or work_info is None:
+            return _punch_error_response(
+                request,
+                _(
+                    "Check-out is unavailable until your employee work information "
+                    "is complete."
+                ),
+            )
         shift = work_info.shift_id
         date_today = date.today()
         if request.__dict__.get("date"):
@@ -562,7 +608,11 @@ def clock_out(request):
             day=day, shift=shift
         )
         attendance = clock_out_attendance_and_activity(
-            employee=employee, date_today=date_today, now=now, out_datetime=datetime_now
+            employee=employee,
+            date_today=date_today,
+            now=now,
+            out_datetime=datetime_now,
+            punch_evidence=punch_evidence,
         )
         if attendance:
             early_out_instance = attendance.late_come_early_out.filter(type="early_out")
