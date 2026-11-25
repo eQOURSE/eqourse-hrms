@@ -100,14 +100,7 @@
                             </small>
                         {% endif %}
                     </form>
-                    {% if google_sign_in_enabled %}
-                        <form method="post" action="{% url 'google-oidc-start' %}">
-                            {% csrf_token %}
-                            <button type="submit" class="oh-btn oh-btn--secondary w-100 mt-3">
-                                {% trans "Sign in with Google" %}
-                            </button>
-                        </form>
-                    {% endif %}
+                    {% include "google_oidc_button.html" with button_class="oh-btn oh-btn--secondary w-100 mt-3" %}
                     {% if initialize_database %}
                         <div>
                             <div class="d-flex gap-2">
