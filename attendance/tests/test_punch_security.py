@@ -134,7 +134,6 @@ class PunchEvidenceTests(TestCase):
         })
         verify.assert_called_once()
 
-    @patch("attendance.punch_security.verify_employee_face")
     @override_settings(OFFICE_GEOFENCE_RADIUS_METERS=100)
     @patch("attendance.punch_security.geodesic")
     @patch("attendance.punch_security.verify_employee_face")
@@ -148,6 +147,7 @@ class PunchEvidenceTests(TestCase):
                     validate_punch_evidence(self.request(accuracy="11"), self.employee, action)
                 self.assertEqual(failure.exception.location["radius_meters"], 100)
 
+    @patch("attendance.punch_security.verify_employee_face")
     @patch("attendance.punch_security.is_remote_workday", return_value=True)
     def test_authorised_wfh_can_punch_outside_radius(self, _remote, _verify):
         evidence = validate_punch_evidence(
