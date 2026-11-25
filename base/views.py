@@ -944,6 +944,8 @@ def login_user(request):
         return redirect(next_url)
 
     form_state = request.session.pop(LOGIN_FORM_STATE_KEY, None) or {}
+    from horilla_auth.google_oidc import enabled as google_sign_in_enabled
+
     return render(
         request,
         "login.html",
@@ -951,6 +953,7 @@ def login_user(request):
             "initialize_database": initialize_database_condition(),
             "form_username": form_state.get("username", ""),
             "field_errors": form_state.get("field_errors", {}),
+            "google_sign_in_enabled": google_sign_in_enabled(),
         },
     )
 

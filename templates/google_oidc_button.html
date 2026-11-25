@@ -1,0 +1,9 @@
+{% load i18n %}
+{% if google_sign_in_enabled %}
+    <form method="post" action="{% url 'google-oidc-start' %}">
+        {% csrf_token %}
+        <button type="submit" class="{{ button_class }}">
+            {% trans "Sign in with Google" %}
+        </button>
+    </form>
+{% endif %}

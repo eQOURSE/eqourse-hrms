@@ -1,0 +1,12 @@
+services:
+  web:
+    environment:
+      GOOGLE_OIDC_CLIENT_ID: ${GOOGLE_OIDC_CLIENT_ID:?Set the Google Web OAuth client ID}
+      GOOGLE_OIDC_SECRET_FILE: /run/secrets/google_oidc_client_secret
+      GOOGLE_OIDC_REDIRECT_URI: https://work.eqourse.com/auth/google/callback/
+    secrets:
+      - google_oidc_client_secret
+
+secrets:
+  google_oidc_client_secret:
+    file: /etc/horilla/google-oidc-client-secret

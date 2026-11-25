@@ -24,9 +24,33 @@ sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T ngi
 
 Set up the first Superadmin via `docker compose -f docker-compose.yml -f docker-compose.prod.yml exec web python manage.py createsuperuser`. Verify HTTPS and the scheduler before onboarding. Run `python manage.py check --deploy` in the web container. Confirm that private media is served through Django and production sessions use secure cookies. Update during a release window. Take a verified pre-release backup and restore it with the last working commit if a schema change prevents rolling back the app alone.
 
+## Google Workspace sign-in
+
+Register `https://work.eqourse.com/auth/google/callback/` on the Internal Google Web OAuth client. Add `GOOGLE_OIDC_CLIENT_ID` to the host's `.env`. Use the instance's AWS role to materialize only the approved SecureString into a file readable by the web container's UID 1000.
+
+```bash
+sudo bash -c '
+set -eu
+umask 077
+temp=$(mktemp /etc/horilla/google-oidc.XXXXXX)
+trap '\''rm -f "$temp"'\'' EXIT
+aws ssm get-parameter --region ap-south-1 \
+  --name /eqourse/hrms/google-oidc-client-secret --with-decryption \
+  --query Parameter.Value --output text --no-cli-pager > "$temp"
+test -s "$temp"
+chown 1000:1000 "$temp"
+chmod 0400 "$temp"
+mv -T "$temp" /etc/horilla/google-oidc-client-secret
+'
+```
+
+The deployment script includes the Google Compose overlay when that file is present. For each approved employee, first create their active Horilla employee and user accounts. An authorized deployment operator can add a `horilla_auth.models.GoogleIdentity` row linking the Horilla user to their exact lowercase `@eqourse.com` address. The first successful login binds Google's stable subject to that row. Superadmins use the local recovery login. For a renamed or reassigned Google account, review and replace the approval explicitly. Removing an approval prevents subsequent Google sign-ins.
+
 ## Daily encrypted backup
 
-Install `age`, AWS CLI and `rclone` on the host. Use the instance role for a dedicated encrypted, versioned S3 prefix and a restricted rclone credential for an approved Google Shared Drive folder. Set `BACKUP_AGE_RECIPIENT` to the public encryption recipient, `BACKUP_S3_URI` to the destination prefix, and `BACKUP_DRIVE_URI` to a remote path such as `workspace:horilla_backup`. Store the private recovery key outside the host. Protect the rclone configuration and the systemd service's environment file.
+Install `age` and the AWS CLI on the host. Use the instance role for a dedicated encrypted, versioned S3 prefix. Set `BACKUP_AGE_RECIPIENT` to the public encryption recipient and `BACKUP_S3_URI` to the destination prefix. Store the private recovery key outside the host.
+
+For the optional Google Drive copy, install `rclone` on the host. In the `eqourse-work` Google Cloud project, enable the Google Drive and Google Picker APIs and create a Desktop OAuth client for the backup uploader. Run `python deploy/authorize_drive_backup.py --client-json PATH --account-email EMAIL --folder-id FOLDER_ID` on a workstation signed into the eQOURSE AWS account. Sign in from the browser link and select only the approved folder. The command checks the account, folder and OAuth scope before storing the credential in Parameter Store. Then run `sudo bash deploy/connect_drive_backup.sh FOLDER_ID` on the host. The script verifies a download of the encrypted archive before switching the daily job to write both copies.
 
 The unit files assume a checkout at `/opt/eqourse-hrms` and a root-readable `/etc/horilla/backup.env` with mode `0600`. Include `RCLONE_CONFIG` if the rclone configuration is outside the service account's home directory. Install the units and verify one backup before enabling the timer.
 
