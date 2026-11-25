@@ -34,11 +34,13 @@
             .ess-dashboard .ess-chart-card__header, #essMonthlySummary .cal-header { flex-wrap: wrap; }
             #essMonthlySummary .cal-hours-strip {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+                grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: .4rem;
                 padding: .55rem;
             }
             #essMonthlySummary .cal-hours-item { flex-wrap: wrap; min-width: 0; }
+            #essMonthlySummary .cal-hours-item--ot { grid-column: 1 / -1; }
+            #essMonthlySummary .cal-hours-item > div { min-width: 0; }
             #essMonthlySummary .cal-body { padding-right: .5rem; padding-left: .5rem; }
             #essMonthlySummary .cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
             #essMonthlySummary .cal-cell { min-width: 0; padding: .2rem; overflow-wrap: anywhere; }
