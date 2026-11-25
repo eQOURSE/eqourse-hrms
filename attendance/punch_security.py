@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, timezone as datetime_timezone
 
 from django.conf import settings
@@ -144,7 +145,7 @@ def validate_punch_evidence(request, employee, action: str):
                 "Please refresh your location and try again."
             )
         )
-    if accuracy < 0 or accuracy > getattr(
+    if not math.isfinite(accuracy) or accuracy < 0 or accuracy > getattr(
         settings, "PUNCH_LOCATION_MAX_ACCURACY_METERS", 25
     ):
         raise PunchEvidenceError(

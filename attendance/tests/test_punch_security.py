@@ -167,6 +167,17 @@ class PunchEvidenceTests(TestCase):
             )
         verify.assert_not_called()
 
+    @patch("attendance.punch_security.verify_employee_face")
+    def test_non_finite_gps_accuracy_rejected_for_both_punches(self, verify):
+        for action in ("check-in", "check-out"):
+            for accuracy in ("NaN", "Infinity", "-Infinity"):
+                with self.subTest(action=action, accuracy=accuracy):
+                    with self.assertRaisesRegex(PunchEvidenceError, "GPS accuracy"):
+                        validate_punch_evidence(
+                            self.request(accuracy=accuracy), self.employee, action
+                        )
+        verify.assert_not_called()
+
     @patch("attendance.punch_security.is_remote_workday", return_value=True)
     @patch(
         "attendance.punch_security.verify_employee_face",
