@@ -13,6 +13,40 @@ class FaceVerificationError(Exception):
     """A user-actionable reason why a punch image cannot be accepted."""
 
 
+def validate_reference_face_image(uploaded_image) -> None:
+    """Validate an employee's approved face photo before storing it."""
+
+    if not uploaded_image:
+        raise FaceVerificationError(
+            "Please choose a face photo to register."
+        )
+    try:
+        import face_recognition
+
+        image_bytes = uploaded_image.read()
+        if not image_bytes:
+            raise FaceVerificationError(
+                "The selected photo is empty. Please choose another photo."
+            )
+        faces = face_recognition.face_encodings(
+            face_recognition.load_image_file(io.BytesIO(image_bytes))
+        )
+    except FaceVerificationError:
+        raise
+    except Exception as exc:
+        raise FaceVerificationError(
+            "The face photo could not be read. Please upload a clear image."
+        ) from exc
+    finally:
+        if hasattr(uploaded_image, "seek"):
+            uploaded_image.seek(0)
+
+    if len(faces) != 1:
+        raise FaceVerificationError(
+            "The approved face photo must contain exactly one clear face."
+        )
+
+
 def verify_employee_face(employee, uploaded_image) -> None:
     """Compare one live face with the employee's approved reference photo.
 
