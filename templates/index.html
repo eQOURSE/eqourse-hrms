@@ -39,6 +39,23 @@
     <link rel="stylesheet" href="{% static 'build/css/orgChart.css' %}" />
     <link rel="stylesheet" href="{% static '/jquery/jqueryui.css' %}">
     <link rel="stylesheet" href="{% static 'build/css/pivottable.min.css' %}" />
+    <style>
+        @media (max-width: 767.98px) {
+            body { overflow-x: hidden; }
+            .oh-wrapper-main { min-width: 0; grid-template-columns: auto; }
+            #sidebar { position: fixed !important; inset: 0 auto 0 0; z-index: 2000; width: min(84vw, 290px); transform: translateX(0); transition: transform .22s ease; box-shadow: 12px 0 30px rgba(15, 23, 42, .2); }
+            .oh-wrapper-main--closed #sidebar { transform: translateX(-105%); }
+            #main { min-width: 0; width: 100%; }
+            .oh-navbar { height: auto; min-height: 65px; }
+            .oh-navbar__wrapper { max-width: 100%; width: 100%; min-height: 65px; padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+            .oh-navbar__toggle-container { flex: 1 1 auto; min-width: 0; }
+            .oh-navbar__systray { width: 100%; height: auto; min-height: 48px; display: flex; flex: 1 0 100%; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+            #attendance-activity-container { order: -1; flex: 1 1 100%; min-width: 0; }
+            #attendance-activity-container .eqourse-punch-btn { width: 100%; min-height: 46px; margin: 0 !important; }
+            .oh-navbar__action-icons, .oh-navbar__systray > .oh-dropdown { margin-left: 0 !important; }
+            #main-section-data { max-width: 100%; overflow-x: hidden; }
+        }
+    </style>
     <script src="{% static '/jquery/ajax.js' %}"></script>
     <script src="{% static '/jquery/jquery.min.js' %}"></script>
     <script src="{% static '/jquery/jqueryui.js' %}"></script>

@@ -231,10 +231,11 @@ def update_own_face_photo(request):
         employee_id=employee
     )
     old_image = reference.image
+    old_image_name = old_image.name if old_image else ""
     reference.image = uploaded_image
     reference.save()
-    if old_image and old_image.name != reference.image.name:
-        old_image.delete(save=False)
+    if old_image_name and old_image_name != reference.image.name:
+        reference.image.storage.delete(old_image_name)
     return HttpResponse(
         '<div class="oh-alert oh-alert--success">Approved face photo saved. You can replace it any time.</div>'
     )

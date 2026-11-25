@@ -1634,7 +1634,8 @@ $(function () {
     const $wrapper = $('.oh-wrapper-main');
     const sidebarOpen = localStorage.getItem('sidebarOpen');
 
-    if (sidebarOpen === 'false') {
+    const mobileByDefault = window.matchMedia && window.matchMedia('(max-width: 767.98px)').matches;
+    if (sidebarOpen === 'false' || (sidebarOpen === null && mobileByDefault)) {
         $wrapper.addClass('oh-wrapper-main--closed');
     } else {
         $wrapper.removeClass('oh-wrapper-main--closed');

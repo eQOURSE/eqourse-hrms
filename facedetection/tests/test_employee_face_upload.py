@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -43,7 +44,7 @@ class EmployeeFaceUploadTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         reference = EmployeeFaceDetection.objects.get(employee_id=self.employee)
-        self.assertTrue(reference.image.name.endswith("replacement.jpg"))
+        self.assertEqual(Path(reference.image.name).stem.split("_")[0], "replacement")
         self.assertEqual(validate.call_count, 2)
 
     def test_employee_cannot_register_when_face_detection_is_disabled(self):
