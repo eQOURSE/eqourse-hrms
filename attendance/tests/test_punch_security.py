@@ -52,7 +52,7 @@ class PunchEvidenceTests(TestCase):
     @patch("attendance.punch_security.verify_employee_face")
     @patch("attendance.punch_security.is_remote_workday", return_value=False)
     def test_office_outside_radius_is_rejected(self, _remote, _verify, _nominatim):
-        with self.assertRaisesRegex(PunchEvidenceError, "approved office radius"):
+        with self.assertRaisesRegex(PunchEvidenceError, "outside the approved"):
             validate_punch_evidence(
                 self.request("25.14492", "75.84506"), self.employee, "check-in"
             )
@@ -67,10 +67,66 @@ class PunchEvidenceTests(TestCase):
     @patch("attendance.punch_security.verify_employee_face")
     @patch("attendance.punch_security.is_remote_workday", return_value=False)
     def test_office_check_out_outside_radius_is_rejected(self, _remote, _verify):
-        with self.assertRaisesRegex(PunchEvidenceError, "approved office radius"):
+        with self.assertRaisesRegex(PunchEvidenceError, "outside the approved"):
             validate_punch_evidence(
                 self.request("25.14492", "75.84506"), self.employee, "check-out"
             )
+
+    @patch("attendance.punch_security.geodesic")
+    @patch("attendance.punch_security.verify_employee_face")
+    @patch("attendance.punch_security.is_remote_workday", return_value=False)
+    def test_check_in_uses_distance_plus_accuracy_boundary(
+        self, _remote, verify, distance
+    ):
+        distance.return_value.meters = 40
+        for accuracy in ("9", "10"):
+            with self.subTest(accuracy=accuracy):
+                evidence = validate_punch_evidence(
+                    self.request(accuracy=accuracy), self.employee, "check-in"
+                )
+                self.assertEqual(evidence["distance_meters"], 40)
+        self.assertEqual(verify.call_count, 2)
+
+    @patch("attendance.punch_security.geodesic")
+    @patch("attendance.punch_security.verify_employee_face")
+    @patch("attendance.punch_security.is_remote_workday", return_value=False)
+    def test_check_out_uses_distance_plus_accuracy_boundary(
+        self, _remote, verify, distance
+    ):
+        distance.return_value.meters = 40
+        for accuracy in ("9", "10"):
+            with self.subTest(accuracy=accuracy):
+                evidence = validate_punch_evidence(
+                    self.request(accuracy=accuracy), self.employee, "check-out"
+                )
+                self.assertEqual(evidence["distance_meters"], 40)
+        self.assertEqual(verify.call_count, 2)
+
+    @patch("attendance.punch_security.geodesic")
+    @patch("attendance.punch_security.verify_employee_face")
+    @patch("attendance.punch_security.is_remote_workday", return_value=False)
+    def test_check_in_rejects_distance_plus_accuracy_over_50m(
+        self, _remote, verify, distance
+    ):
+        distance.return_value.meters = 49
+        with self.assertRaisesRegex(PunchEvidenceError, "GPS uncertainty"):
+            validate_punch_evidence(
+                self.request(accuracy="25"), self.employee, "check-in"
+            )
+        verify.assert_called_once()
+
+    @patch("attendance.punch_security.geodesic")
+    @patch("attendance.punch_security.verify_employee_face")
+    @patch("attendance.punch_security.is_remote_workday", return_value=False)
+    def test_check_out_rejects_distance_plus_accuracy_over_50m(
+        self, _remote, verify, distance
+    ):
+        distance.return_value.meters = 49
+        with self.assertRaisesRegex(PunchEvidenceError, "GPS uncertainty"):
+            validate_punch_evidence(
+                self.request(accuracy="25"), self.employee, "check-out"
+            )
+        verify.assert_called_once()
 
     @patch("attendance.punch_security.verify_employee_face")
     @patch("attendance.punch_security.is_remote_workday", return_value=True)

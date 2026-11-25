@@ -183,10 +183,11 @@ def validate_punch_evidence(request, employee, action: str):
         distance = geodesic(
             (office_latitude, office_longitude), (latitude, longitude)
         ).meters
-        if not remote_authorized and distance > office_radius:
+        if not remote_authorized and distance + accuracy > office_radius:
             raise PunchEvidenceError(
                 _(
-                    "Check-in/out is only allowed within the approved office radius. "
+                    "Your office location plus GPS uncertainty is outside the approved "
+                    "50-metre radius. Please refresh your location and try again. "
                     "Remote or approved WFH staff may punch outside it."
                 )
             )

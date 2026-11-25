@@ -22,7 +22,8 @@ The web portal and native app must submit these fields to the existing punch
 endpoints:
 
 - `latitude`, `longitude`, `accuracy` (reported accuracy must be 25 metres or
-  better for the office test)
+  better for the office test; onsite acceptance requires distance from the
+  approved pin plus reported accuracy to be no more than 50 metres)
 - `location_timestamp` (Unix milliseconds or an ISO-8601 timestamp)
 - `face_image` (a live camera capture, not the stored profile photo)
 
@@ -54,6 +55,8 @@ Bhavesh and verified against these endpoints.
 
 - Office check-in and check-out inside the configured radius: accepted.
 - Office check-in and check-out outside the configured radius: rejected.
+- Office distance plus GPS accuracy boundary: 40 m + 9 m accepted, 40 m +
+  10 m accepted exactly at 50 m, and 49 m + 25 m rejected for both actions.
 - Missing or disabled office fence: rejected with a clear configuration message.
 - GPS accuracy above 25 metres or missing accuracy: rejected with a retry message.
 - Approved WFH/remote check-in and check-out outside the radius: accepted, with
