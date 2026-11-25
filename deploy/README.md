@@ -48,7 +48,9 @@ The deployment script includes the Google Compose overlay when that file is pres
 
 ## Daily encrypted backup
 
-Install `age`, AWS CLI and `rclone` on the host. Use the instance role for a dedicated encrypted, versioned S3 prefix and a restricted rclone credential for an approved Google Shared Drive folder. Set `BACKUP_AGE_RECIPIENT` to the public encryption recipient, `BACKUP_S3_URI` to the destination prefix, and `BACKUP_DRIVE_URI` to a remote path such as `workspace:horilla_backup`. Store the private recovery key outside the host. Protect the rclone configuration and the systemd service's environment file.
+Install `age` and the AWS CLI on the host. Use the instance role for a dedicated encrypted, versioned S3 prefix. Set `BACKUP_AGE_RECIPIENT` to the public encryption recipient and `BACKUP_S3_URI` to the destination prefix. Store the private recovery key outside the host.
+
+For the optional Google Drive copy, install `rclone` on the host. In the `eqourse-work` Google Cloud project, enable the Google Drive and Google Picker APIs and create a Desktop OAuth client for the backup uploader. Run `python deploy/authorize_drive_backup.py --client-json PATH --account-email EMAIL --folder-id FOLDER_ID` on a workstation signed into the eQOURSE AWS account. Sign in from the browser link and select only the approved folder. The command checks the account, folder and OAuth scope before storing the credential in Parameter Store. Then run `sudo bash deploy/connect_drive_backup.sh FOLDER_ID` on the host. The script verifies a download of the encrypted archive before switching the daily job to write both copies.
 
 The unit files assume a checkout at `/opt/eqourse-hrms` and a root-readable `/etc/horilla/backup.env` with mode `0600`. Include `RCLONE_CONFIG` if the rclone configuration is outside the service account's home directory. Install the units and verify one backup before enabling the timer.
 
