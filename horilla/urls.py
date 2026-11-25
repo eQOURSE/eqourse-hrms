@@ -27,6 +27,7 @@ from django.views.generic import RedirectView
 from django.views.i18n import JavaScriptCatalog
 
 import notifications.urls
+from horilla_auth import google_oidc
 from horilla_crumbs.views import breadcrumbs_fragment
 
 from . import settings
@@ -135,6 +136,8 @@ def metrics(request):
 
 
 urlpatterns = [
+    path("auth/google/start/", google_oidc.start, name="google-oidc-start"),
+    path("auth/google/callback/", google_oidc.callback, name="google-oidc-callback"),
     path("admin/", admin.site.urls),
     # django.contrib.auth.urls is here for the password_reset_* routes its forms
     # and mails reverse. Its /accounts/login/ renders registration/login.html,

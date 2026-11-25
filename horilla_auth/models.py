@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -10,6 +11,14 @@ class HorillaUser(AbstractUser):
         swappable = "AUTH_USER_MODEL"
         verbose_name = _("User")
         verbose_name_plural = _("Users")
+
+
+class GoogleIdentity(models.Model):
+    """An administrator-approved Google account for an existing Horilla user."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    email = models.EmailField(unique=True)
+    subject = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
 
 class LegacyUser(models.Model):
