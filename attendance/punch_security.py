@@ -12,6 +12,7 @@ from django.utils.translation import gettext_lazy as _
 from geopy.distance import geodesic
 
 from facedetection.verification import FaceVerificationError, verify_employee_face
+from geofencing.google_maps import reverse_geocode
 from geofencing.models import GeoFencing
 
 
@@ -158,6 +159,7 @@ def validate_punch_evidence(request, employee, action: str):
                 )
             )
 
+    location = reverse_geocode(latitude, longitude, required=False)
     return {
         "latitude": latitude,
         "longitude": longitude,
@@ -165,5 +167,7 @@ def validate_punch_evidence(request, employee, action: str):
         "captured_at": captured_at,
         "distance_meters": distance,
         "remote_authorized": remote_authorized,
+        "address": (location or {}).get("formatted_address", ""),
+        "google_place_id": (location or {}).get("place_id", ""),
         "action": action,
     }

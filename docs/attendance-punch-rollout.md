@@ -8,6 +8,11 @@ may be outside that fence. The captured latitude, longitude, accuracy, and
 timestamp are stored separately for check-in and check-out on both attendance
 records and activity records.
 
+Google Maps Geocoding API resolves the approved office pin and reverse-geocodes
+each captured punch coordinate to a reviewable formatted address and place id.
+The device-provided coordinates remain the source of truth for radius checks;
+the Google response is descriptive metadata, not a substitute for GPS evidence.
+
 ## Client contract
 
 The web portal and native app must submit these fields to the existing punch
@@ -30,6 +35,9 @@ punch leaves attendance unchanged and returns an actionable error message.
 4. Enable the production geofence and face policy after both clients have been
    verified. Keep AWS, production deployment credentials, SSO, SMTP, and role
    setup with Bhavesh.
+
+Configure `GOOGLE_MAPS_API_KEY` on the server before enabling location review.
+Restrict the key to the Geocoding API and keep it out of source control.
 
 The native app repository was not present in this checkout, so this PR contains
 the server contract and web client only. Do not make the server enforcement

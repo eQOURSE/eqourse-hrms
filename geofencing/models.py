@@ -2,13 +2,17 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
-from geopy.geocoders import Nominatim
+from geopy.geocoders import Nominatim  # compatibility for existing test patches
+
+from .google_maps import reverse_geocode
 
 
 class GeoFencing(models.Model):
     latitude = models.FloatField()
     longitude = models.FloatField()
     radius_in_meters = models.IntegerField()
+    formatted_address = models.CharField(max_length=512, blank=True)
+    google_place_id = models.CharField(max_length=255, blank=True)
     company_id = models.OneToOneField(
         "base.Company",
         related_name="geo_fencing",
@@ -43,17 +47,15 @@ class GeoFencing(models.Model):
                     _("Only one GeoFencing can have a null company_id.")
                 )
 
-        geolocator = Nominatim(
-            user_agent="geo_checker_unique"
-        )  # Unique user-agent is important
-        try:
-            location = geolocator.reverse(
-                (self.latitude, self.longitude), exactly_one=True
-            )
-            if not location:
-                raise ValidationError(_("Invalid location coordinates."))
-        except Exception as e:
-            raise ValidationError(f"Geolocation error: {e}")
+        if not -90 <= self.latitude <= 90 or not -180 <= self.longitude <= 180:
+            raise ValidationError(_("Invalid location coordinates."))
+        if self.radius_in_meters <= 0:
+            raise ValidationError(_("The geofence radius must be greater than zero."))
+
+        location = reverse_geocode(self.latitude, self.longitude, required=False)
+        if location:
+            self.formatted_address = location["formatted_address"]
+            self.google_place_id = location["place_id"]
 
         return super().clean()
 

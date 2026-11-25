@@ -173,6 +173,7 @@ def clock_in_attendance_and_activity(
         clock_in_longitude=(punch_evidence or {}).get("longitude"),
         clock_in_accuracy=(punch_evidence or {}).get("accuracy"),
         clock_in_location_at=(punch_evidence or {}).get("captured_at"),
+        clock_in_location_address=(punch_evidence or {}).get("address", ""),
     )
     # create attendance if not exist
     attendance = Attendance.objects.filter(
@@ -192,6 +193,9 @@ def clock_in_attendance_and_activity(
         attendance.clock_in_longitude = (punch_evidence or {}).get("longitude")
         attendance.clock_in_accuracy = (punch_evidence or {}).get("accuracy")
         attendance.clock_in_location_at = (punch_evidence or {}).get("captured_at")
+        attendance.clock_in_location_address = (punch_evidence or {}).get(
+            "address", ""
+        )
         attendance.save()
         # check here late come or not
 
@@ -391,6 +395,9 @@ def clock_out_attendance_and_activity(
         attendance_activity.clock_out_location_at = (punch_evidence or {}).get(
             "captured_at"
         )
+        attendance_activity.clock_out_location_address = (punch_evidence or {}).get(
+            "address", ""
+        )
         attendance_activity.save()
 
         attendance_activities = attendance_activities.filter(
@@ -417,6 +424,9 @@ def clock_out_attendance_and_activity(
         attendance.clock_out_longitude = (punch_evidence or {}).get("longitude")
         attendance.clock_out_accuracy = (punch_evidence or {}).get("accuracy")
         attendance.clock_out_location_at = (punch_evidence or {}).get("captured_at")
+        attendance.clock_out_location_address = (punch_evidence or {}).get(
+            "address", ""
+        )
         attendance.attendance_worked_hour = duration
         # Overtime calculation
         attendance.attendance_overtime = overtime_calculation(attendance)

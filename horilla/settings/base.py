@@ -456,6 +456,10 @@ WHITE_LABELLING = False
 # as a runtime bypass.
 FACE_MATCH_TOLERANCE = env.float("FACE_MATCH_TOLERANCE", default=0.48)
 PUNCH_LOCATION_MAX_AGE_SECONDS = env.int("PUNCH_LOCATION_MAX_AGE_SECONDS", default=120)
+GOOGLE_MAPS_API_KEY = env("GOOGLE_MAPS_API_KEY", default="")
+GOOGLE_MAPS_GEOCODING_TIMEOUT_SECONDS = env.int(
+    "GOOGLE_MAPS_GEOCODING_TIMEOUT_SECONDS", default=5
+)
 NESTED_SUBORDINATE_VISIBILITY = False
 TWO_FACTORS_AUTHENTICATION = False
 # When True, /ready/ returns 503 until run_scheduler has registered jobs.
