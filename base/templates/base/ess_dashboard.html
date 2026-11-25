@@ -29,6 +29,20 @@
         @media (max-width: 767px) {
             .ess-dashboard { margin: 0; padding: 0; min-width: 0; }
             .ess-dashboard .ess-period-picker input[type="date"] { max-width: 46%; min-width: 0; }
+            .ess-dashboard .ess-layout, .ess-dashboard .ess-chart-grid { grid-template-columns: minmax(0, 1fr); }
+            .ess-dashboard .ess-main, .ess-dashboard .ess-sidebar { min-width: 0; }
+            .ess-dashboard .ess-chart-card__header, #essMonthlySummary .cal-header { flex-wrap: wrap; }
+            #essMonthlySummary .cal-hours-strip {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+                gap: .4rem;
+                padding: .55rem;
+            }
+            #essMonthlySummary .cal-hours-item { flex-wrap: wrap; min-width: 0; }
+            #essMonthlySummary .cal-body { padding-right: .5rem; padding-left: .5rem; }
+            #essMonthlySummary .cal-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+            #essMonthlySummary .cal-cell { min-width: 0; padding: .2rem; overflow-wrap: anywhere; }
+            #essMonthlySummary .cal-ot-breakdown { white-space: normal; overflow-wrap: anywhere; }
         }
 
         /* ── Header ── */
