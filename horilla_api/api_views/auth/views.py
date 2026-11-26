@@ -154,7 +154,10 @@ class GoogleLoginAPIView(APIView):
 
     def post(self, request):
         raw_token = request.data.get("id_token")
-        client_id = getattr(settings, "GOOGLE_ANDROID_CLIENT_ID", "")
+        # The mobile client requests an ID token for this Web OAuth client.
+        # The Android client ID and release SHA-1 identify the installed app
+        # in Google Cloud; they are not the backend token audience.
+        client_id = getattr(settings, "GOOGLE_SERVER_CLIENT_ID", "")
         hosted_domain = getattr(settings, "GOOGLE_ALLOWED_HOSTED_DOMAIN", "eqourse.com").lower()
         if not raw_token:
             return Response({"error": _("Google sign-in evidence is required.")}, status=400)

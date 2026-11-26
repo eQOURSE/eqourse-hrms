@@ -178,7 +178,7 @@ def geo_location_config(request):
         company_id=company,
         latitude=getattr(settings, "OFFICE_GEOFENCE_LATITUDE", 25.14402),
         longitude=getattr(settings, "OFFICE_GEOFENCE_LONGITUDE", 75.84506),
-        radius_in_meters=getattr(settings, "OFFICE_GEOFENCE_RADIUS_METERS", 50),
+        radius_in_meters=getattr(settings, "OFFICE_GEOFENCE_RADIUS_METERS", 100),
         start=True,
     )
     form = GeoFencingSetupForm(instance=instance)

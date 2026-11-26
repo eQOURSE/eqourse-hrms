@@ -150,7 +150,7 @@ def validate_punch_evidence(request, employee, action: str):
     ):
         raise PunchEvidenceError(
             _(
-                "Your GPS accuracy is too low to confirm the 50-metre office radius. "
+                "Your GPS accuracy is too low to confirm the office radius. "
                 "Please move to an open area, refresh your location, and try again."
             )
         )
@@ -179,7 +179,7 @@ def validate_punch_evidence(request, employee, action: str):
             settings, "OFFICE_GEOFENCE_LONGITUDE", 75.84506
         )
         office_radius = getattr(
-            settings, "OFFICE_GEOFENCE_RADIUS_METERS", 50
+            settings, "OFFICE_GEOFENCE_RADIUS_METERS", 100
         )
         distance = geodesic(
             (office_latitude, office_longitude), (latitude, longitude)
@@ -188,7 +188,7 @@ def validate_punch_evidence(request, employee, action: str):
             raise PunchEvidenceError(
                 _(
                     "Your office location plus GPS uncertainty is outside the approved "
-                    "50-metre radius. Please refresh your location and try again. "
+                    "approved radius. Please refresh your location and try again. "
                     "Remote or approved WFH staff may punch outside it."
                 )
             )
