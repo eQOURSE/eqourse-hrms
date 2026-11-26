@@ -169,6 +169,7 @@
             form.append("longitude", position.coords.longitude);
             form.append("accuracy", position.coords.accuracy);
             form.append("location_timestamp", position.timestamp);
+            if (button.dataset.punchHandoff) form.append("handoff", button.dataset.punchHandoff);
             try {
                 const response = await fetch(button.dataset.punchUrl, {
                     method: "POST",
@@ -193,8 +194,16 @@
                     }
                     throw new Error(payload.error || "Attendance could not be recorded. Please try again.");
                 }
-                const html = await response.text();
-                document.getElementById("attendance-activity-container").innerHTML = html;
+                if (button.dataset.punchHandoff) {
+                    const result = await response.json();
+                    if (result.saved !== true) throw new Error("Check-in could not be confirmed.");
+                    document.querySelector("[data-phone-status]").textContent = "Check-in saved. You can close this page.";
+                    button.hidden = true;
+                    history.replaceState(null, "", location.pathname);
+                } else {
+                    const html = await response.text();
+                    document.getElementById("attendance-activity-container").innerHTML = html;
+                }
                 dialog.close();
             } catch (exception) {
                 showError(exception.message || "Attendance could not be recorded. Please try again.");

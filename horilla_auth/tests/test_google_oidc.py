@@ -7,6 +7,7 @@ from django.test import RequestFactory, SimpleTestCase, override_settings
 from django.urls import reverse
 
 from horilla_auth import google_oidc
+from attendance import phone_handoff
 
 
 @override_settings(
@@ -51,6 +52,22 @@ class GoogleOIDCTests(SimpleTestCase):
         self.assertEqual(params["redirect_uri"], [google_oidc.settings.GOOGLE_OIDC_REDIRECT_URI])
         self.assertEqual(params["code_challenge_method"], ["S256"])
         self.assertEqual(params["state"], [request.session[google_oidc.SESSION_KEY]["state"]])
+
+    @patch("horilla_auth.google_oidc.login")
+    @patch("horilla_auth.google_oidc._approved_user", return_value=Mock(pk=1))
+    @patch("horilla_auth.google_oidc._verified_claims")
+    def test_phone_handoff_survives_google_sign_in(self, verify, _approved, _login):
+        token = phone_handoff.issue(1)
+        self.addCleanup(phone_handoff.consume, token)
+        start = self.factory.post(reverse("google-oidc-start"), {"attendance_handoff": token})
+        start.session = {}
+        google_oidc.start(start)
+        self.assertEqual(start.session[google_oidc.SESSION_KEY]["attendance_handoff"], token)
+        verify.return_value = self.claims
+        request = self.callback()
+        request.session[google_oidc.SESSION_KEY]["attendance_handoff"] = token
+        response = google_oidc.callback(request)
+        self.assertEqual(response["Location"], reverse("attendance-phone-check-in") + "#" + token)
 
     @patch("horilla_auth.google_oidc._verified_claims")
     def test_fails_before_token_exchange_when_state_does_not_match(self, verify):

@@ -16,6 +16,9 @@
                         <span class="hr-Check-In-out-text">{% trans "Check-In" %}</span>
                         <div class="at-work-seconds"></div>
                     </button>
+                    <button class="eqourse-use-phone" type="button" data-phone-qr="{% url 'attendance-phone-check-in-start' %}" data-csrf="{{ csrf_token }}">
+                        {% trans "Use phone" %}
+                    </button>
                     {% if request|is_timerunner_enabled %}
                         <script>
                             $(document).ready(function () {
@@ -30,27 +33,14 @@
     {% endwith %}
 {% endif %}
 
-<link rel="stylesheet" href="{% static 'attendance/mobile-punch.css' %}">
-<script src="{% static 'attendance/mobile-punch.js' %}" defer></script>
-<template id="eqourse-punch-template">
-    <dialog class="eqourse-punch-dialog" aria-labelledby="eqourse-punch-title">
-        <h2 id="eqourse-punch-title"></h2>
-        <p>{% trans "Frame your face in the preview, then take and review your photo." %}</p>
-        <div class="eqourse-punch-preview">
-            <video autoplay playsinline muted aria-label="{% trans 'Live camera preview' %}"></video>
-            <img hidden alt="{% trans 'Photo to submit for attendance' %}">
-        </div>
-        <p data-camera-status role="status"></p>
-        <div class="eqourse-punch-location">
-            <p data-location-status role="status"></p>
-            <button type="button" data-retry-location>{% trans "Retry location" %}</button>
-        </div>
-        <p data-punch-error role="alert" hidden></p>
-        <div class="eqourse-punch-actions">
-            <button type="button" data-close-punch>{% trans "Cancel" %}</button>
-            <button type="button" data-take-photo disabled>{% trans "Take photo" %}</button>
-            <button type="button" data-retake-photo hidden>{% trans "Retake" %}</button>
-            <button type="button" data-submit-punch disabled>{% trans "Submit" %}</button>
-        </div>
+{% include "attendance/components/punch_preview.html" %}
+<script src="{% static 'attendance/phone-check-in.js' %}" defer></script>
+<template id="eqourse-phone-qr-template">
+    <dialog class="eqourse-punch-dialog eqourse-phone-qr" aria-labelledby="eqourse-phone-qr-title">
+        <h2 id="eqourse-phone-qr-title">{% trans "Finish check-in on your phone" %}</h2>
+        <p>{% trans "Scan with your phone camera and sign in with the same eQOURSE account. The code is valid for 5 minutes." %}</p>
+        <img width="256" height="256" hidden alt="{% trans 'QR code for phone check-in' %}">
+        <p data-phone-qr-status role="status"></p>
+        <button type="button" data-phone-qr-close>{% trans "Close" %}</button>
     </dialog>
 </template>

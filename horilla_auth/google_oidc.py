@@ -16,6 +16,7 @@ from django.contrib.auth import login
 from django.db import IntegrityError, transaction
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
@@ -65,6 +66,11 @@ def start(request):
         "verifier": verifier,
         "created": int(time.time()),
     }
+    from attendance import phone_handoff
+
+    handoff = request.POST.get("attendance_handoff")
+    if phone_handoff.owner(handoff) is not None:
+        request.session[SESSION_KEY]["attendance_handoff"] = handoff
     challenge = base64.urlsafe_b64encode(
         hashlib.sha256(verifier.encode("ascii")).digest()
     ).decode("ascii").rstrip("=")
@@ -191,4 +197,8 @@ def callback(request):
 
     login(request, user, backend="base.auth_backends.CompanyScopedBackend")
     logger.info("Google Workspace sign-in completed for Horilla user %s", user.pk)
+    if attempt.get("attendance_handoff"):
+        return _private_response(redirect(
+            reverse("attendance-phone-check-in") + "#" + attempt["attendance_handoff"]
+        ))
     return _private_response(redirect("home-page"))

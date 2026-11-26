@@ -23,7 +23,7 @@ from attendance.cbv import (
     late_come_and_early_out,
     my_attendances,
 )
-from attendance.views import clock_in_out
+from attendance.views import clock_in_out, phone_check_in
 from attendance.views import dashboard as attendance_dashboard
 from attendance.views import geofaceconfig, penalty, requests, search
 from base.forms import AttendanceAllowedIPForm
@@ -331,6 +331,10 @@ urlpatterns = [
     ),
     path("clock-in/", clock_in_out.clock_in, name="clock-in"),
     path("clock-out/", clock_in_out.clock_out, name="clock-out"),
+    path("phone-check-in/", phone_check_in.landing, name="attendance-phone-check-in"),
+    path("phone-check-in/start/", phone_check_in.start, name="attendance-phone-check-in-start"),
+    path("phone-check-in/verify/", phone_check_in.verify, name="attendance-phone-check-in-verify"),
+    path("phone-check-in/submit/", phone_check_in.submit, name="attendance-phone-check-in-submit"),
     path(
         "on-time-view/",
         views.on_time_view,
