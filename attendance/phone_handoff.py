@@ -14,17 +14,32 @@ def valid_token(value):
     return isinstance(value, str) and TOKEN_PATTERN.fullmatch(value) is not None
 
 
-def issue(user_id):
+def issue(user_id, action="check-in", issuer=None):
     token = secrets.token_urlsafe(24)
-    cache.set(f"attendance:phone-check-in:{token}", user_id, TTL_SECONDS)
+    cache.set(f"attendance:phone-check-in:{token}", (user_id, action, issuer), TTL_SECONDS)
     return token
 
 
-def owner(token):
+def pending(token):
     if valid_token(token):
         return cache.get(f"attendance:phone-check-in:{token}")
     return None
 
 
+def owner(token):
+    entry = pending(token)
+    return entry[0] if entry else None
+
+
 def consume(token):
     cache.delete(f"attendance:phone-check-in:{token}")
+
+
+def finish(token, entry):
+    cache.set(f"attendance:phone-check-in:done:{token}", entry, TTL_SECONDS)
+
+
+def completed(token):
+    if valid_token(token):
+        return cache.get(f"attendance:phone-check-in:done:{token}")
+    return None

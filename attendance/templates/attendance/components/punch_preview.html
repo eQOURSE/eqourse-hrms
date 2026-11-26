@@ -1,9 +1,10 @@
 {% load static i18n %}
-<link rel="stylesheet" href="{% static 'attendance/mobile-punch.css' %}?v=2">
-<script src="{% static 'attendance/mobile-punch.js' %}?v=2" defer></script>
+<link rel="stylesheet" href="{% static 'attendance/mobile-punch.css' %}?v=3">
+<script src="{% static 'attendance/mobile-punch.js' %}?v=3" defer></script>
 <template id="eqourse-punch-template">
     <dialog class="eqourse-punch-dialog" aria-labelledby="eqourse-punch-title">
         <h2 id="eqourse-punch-title"></h2>
+        <p data-checkout-elapsed hidden>{% trans "Time worked" %}</p>
         <p>{% trans "Frame your face in the preview, then take and review your photo." %}</p>
         <div class="eqourse-punch-preview">
             <video autoplay playsinline muted aria-label="{% trans 'Live camera preview' %}"></video>

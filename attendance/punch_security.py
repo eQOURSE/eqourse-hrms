@@ -112,7 +112,7 @@ def is_remote_workday(employee, day: date) -> bool:
     )
 
 
-def validate_punch_evidence(request, employee, action: str):
+def validate_punch_evidence(request, employee, action: str, *, laptop_limit=None):
     """Validate fresh GPS plus server-side face evidence for one punch."""
 
     try:
@@ -149,7 +149,7 @@ def validate_punch_evidence(request, employee, action: str):
                 "Please refresh your location and try again."
             )
         )
-    accuracy_limit = getattr(settings, "PUNCH_LOCATION_MAX_ACCURACY_METERS", 25)
+    accuracy_limit = laptop_limit or getattr(settings, "PUNCH_LOCATION_MAX_ACCURACY_METERS", 25)
     if not math.isfinite(accuracy) or accuracy < 0 or accuracy > accuracy_limit:
         raise PunchEvidenceError(
             _(
@@ -168,7 +168,7 @@ def validate_punch_evidence(request, employee, action: str):
     except FaceVerificationError as exc:
         raise PunchEvidenceError(str(exc)) from exc
 
-    remote_authorized = is_remote_workday(employee, timezone.localdate())
+    remote_authorized = laptop_limit is None and is_remote_workday(employee, timezone.localdate())
     company = employee.get_company()
     fence = GeoFencing.for_company(company) if company else None
     distance = None
@@ -186,7 +186,7 @@ def validate_punch_evidence(request, employee, action: str):
         office_longitude = getattr(
             settings, "OFFICE_GEOFENCE_LONGITUDE", 75.84506
         )
-        office_radius = getattr(
+        office_radius = laptop_limit or getattr(
             settings, "OFFICE_GEOFENCE_RADIUS_METERS", 50
         )
         distance = geodesic(

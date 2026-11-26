@@ -37,6 +37,7 @@ from attendance.models import (
     AttendanceLateComeEarlyOut,
     GraceTime,
 )
+from attendance import laptop_punch
 from attendance.punch_security import PunchEvidenceError, validate_punch_evidence
 from attendance.views.views import attendance_validate
 from base.context_processors import (
@@ -226,6 +227,18 @@ def _punch_error_response(request, message, status=400):
     return HorillaRedirect(request)
 
 
+def _validate_web_punch(request, employee, action):
+    if request.POST.get("punch_method") == "laptop" and not getattr(request, "phone_attendance_handoff", False):
+        if not laptop_punch.approved(request, employee):
+            raise PunchEvidenceError(_(
+                "For laptop check-in or check-out, connect to the office network and use Phone first to approve this browser session."
+            ))
+        return validate_punch_evidence(
+            request, employee, action, laptop_limit=laptop_punch.LAPTOP_LIMIT_METERS
+        )
+    return validate_punch_evidence(request, employee, action)
+
+
 @login_required
 @hx_request_required
 def clock_in(request):
@@ -295,7 +308,7 @@ def clock_in(request):
                     _("Check-in is unavailable until your employee profile is complete."),
                 )
             try:
-                punch_evidence = validate_punch_evidence(request, employee, "check-in")
+                punch_evidence = _validate_web_punch(request, employee, "check-in")
             except PunchEvidenceError as exc:
                 return _punch_error_response(request, exc)
         datetime_now = timezone.localtime()
@@ -586,7 +599,7 @@ def clock_out(request):
                     _("Check-out is unavailable until your employee profile is complete."),
                 )
             try:
-                punch_evidence = validate_punch_evidence(request, employee, "check-out")
+                punch_evidence = _validate_web_punch(request, employee, "check-out")
             except PunchEvidenceError as exc:
                 return _punch_error_response(request, exc)
         if not employee or work_info is None:

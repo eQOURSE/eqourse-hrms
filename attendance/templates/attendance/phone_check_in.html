@@ -5,13 +5,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="referrer" content="no-referrer">
-    <title>{% trans "Phone check-in" %} · eQOURSE Work</title>
+    <title>{% trans "Phone attendance" %} · eQOURSE Work</title>
     <link rel="icon" href="{% static 'images/ui/eqourse-logo.webp' %}">
 </head>
 <body class="eqourse-phone-check-in">
     <main id="eqourse-phone-check-in" data-authenticated="{{ request.user.is_authenticated|yesno:'true,false' }}" data-verify-url="{% url 'attendance-phone-check-in-verify' %}">
         <img class="eqourse-phone-logo" src="{% static 'images/ui/eqourse-logo.webp' %}" alt="eQOURSE Work">
-        <h1>{% trans "Phone check-in" %}</h1>
+        <h1>{% trans "Phone attendance" %}</h1>
         <p data-phone-status role="status">{% trans "Checking your link…" %}</p>
         <button class="eqourse-punch-btn" type="button" data-punch-url="{% url 'attendance-phone-check-in-submit' %}" data-csrf="{{ csrf_token }}" hidden>
             <span class="hr-Check-In-out-text">{% trans "Check in" %}</span>
@@ -26,6 +26,6 @@
         <p><a href="{% url 'ess-dashboard' %}">{% trans "Open my dashboard" %}</a></p>
     </main>
     {% include "attendance/components/punch_preview.html" %}
-    <script src="{% static 'attendance/phone-check-in.js' %}" defer></script>
+    <script src="{% static 'attendance/phone-check-in.js' %}?v=2" defer></script>
 </body>
 </html>

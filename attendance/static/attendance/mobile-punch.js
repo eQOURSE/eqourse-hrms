@@ -17,10 +17,16 @@
         return `GPS uncertainty: ${accuracy} m. Maximum allowed: ${metres(details.accuracy_limit_meters)} m.`;
     }
 
-    function openPunch(button) {
+    function openPunch(button, method) {
         const template = document.getElementById("eqourse-punch-template");
         if (!template || document.querySelector(".eqourse-punch-dialog[open]")) return;
         const dialog = template.content.firstElementChild.cloneNode(true);
+        const elapsed = button.querySelector("[data-punch-elapsed]");
+        if (elapsed) {
+            const summary = dialog.querySelector("[data-checkout-elapsed]");
+            summary.append(elapsed.cloneNode(true));
+            summary.hidden = false;
+        }
         const video = dialog.querySelector("video");
         const preview = dialog.querySelector("img");
         const cameraStatus = dialog.querySelector("[data-camera-status]");
@@ -170,6 +176,7 @@
             form.append("accuracy", position.coords.accuracy);
             form.append("location_timestamp", position.timestamp);
             if (button.dataset.punchHandoff) form.append("handoff", button.dataset.punchHandoff);
+            if (method === "laptop") form.append("punch_method", method);
             try {
                 const response = await fetch(button.dataset.punchUrl, {
                     method: "POST",
@@ -197,7 +204,8 @@
                 if (button.dataset.punchHandoff) {
                     const result = await response.json();
                     if (result.saved !== true) throw new Error("Check-in could not be confirmed.");
-                    document.querySelector("[data-phone-status]").textContent = "Check-in saved. You can close this page.";
+                    document.querySelector("[data-phone-status]").textContent =
+                        result.action === "check-out" ? "Check-out saved. You can close this page." : "Check-in saved. You can close this page.";
                     button.hidden = true;
                     history.replaceState(null, "", location.pathname);
                 } else {
@@ -236,6 +244,14 @@
 
     document.addEventListener("click", (event) => {
         const button = event.target.closest(".eqourse-punch-btn");
-        if (button && !button.disabled) openPunch(button);
+        if (!button || button.disabled) return;
+        const desktop = /Windows NT|Macintosh|X11|CrOS/i.test(navigator.userAgent) &&
+            !navigator.userAgentData?.mobile && !/Android|Mobile|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (desktop && button.hasAttribute("data-punch-choice")) {
+            document.dispatchEvent(new CustomEvent("eqourse:punch-choice", { detail: button }));
+        } else {
+            openPunch(button);
+        }
     });
+    document.addEventListener("eqourse:laptop-punch", (event) => openPunch(event.detail, "laptop"));
 })();

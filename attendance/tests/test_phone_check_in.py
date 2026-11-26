@@ -3,10 +3,10 @@ from unittest.mock import patch
 from urllib.parse import urlsplit
 
 from django.http import JsonResponse
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
-from attendance import phone_handoff
+from attendance import laptop_punch, phone_handoff
 from attendance.models import AttendanceGeneralSetting
 from attendance.views import phone_check_in
 from horilla.testkit import make_company, make_employee, make_user
@@ -67,3 +67,42 @@ class PhoneCheckInTests(TestCase):
         self.assertEqual(phone_check_in.submit(request).status_code, 200)
         self.assertEqual(phone_check_in.submit(request).status_code, 403)
         punch.assert_called_once_with(request)
+
+    @override_settings(ATTENDANCE_LAPTOP_OFFICE_IP="203.0.113.7")
+    @patch("attendance.views.phone_check_in.render_to_string", return_value="updated controls")
+    @patch("attendance.views.phone_check_in._session_key", return_value="issuer-session")
+    def test_only_the_issuing_office_laptop_session_gets_approved(self, session, _render):
+        token = phone_handoff.issue(self.user.pk, issuer="issuer-session")
+        self.addCleanup(phone_handoff.consume, token)
+        request = self.factory.post(
+            reverse("attendance-phone-check-in-status"), {"handoff": token},
+            REMOTE_ADDR="203.0.113.7",
+            HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        )
+        request.user, request.session = self.user, {}
+        self.assertEqual(json.loads(phone_check_in.status(request).content), {"saved": False})
+        entry = phone_handoff.pending(token)
+        phone_handoff.consume(token)
+        phone_handoff.finish(token, entry)
+        session.return_value = "another-session"
+        self.assertEqual(phone_check_in.status(request).status_code, 403)
+        session.return_value = "issuer-session"
+        self.assertEqual(json.loads(phone_check_in.status(request).content), {
+            "saved": True, "controls": "updated controls",
+        })
+        self.assertTrue(laptop_punch.approved(request, self.user.employee_get))
+        request.META["REMOTE_ADDR"] = "203.0.113.8"
+        self.assertFalse(laptop_punch.approved(request, self.user.employee_get))
+        request.META["REMOTE_ADDR"] = "203.0.113.7"
+        request.META["HTTP_USER_AGENT"] = "Mozilla/5.0 (Linux; Android 16) Mobile"
+        del request.headers
+        self.assertFalse(laptop_punch.approved(request, self.user.employee_get))
+
+    @patch("attendance.views.clock_in_out.validate_punch_evidence")
+    def test_qr_submission_cannot_select_the_laptop_limit(self, validate):
+        from attendance.views.clock_in_out import _validate_web_punch
+
+        request = self.factory.post("/", {"punch_method": "laptop"})
+        request.phone_attendance_handoff = True
+        _validate_web_punch(request, self.user.employee_get, "check-in")
+        validate.assert_called_once_with(request, self.user.employee_get, "check-in")
