@@ -1,8 +1,14 @@
+import requests
+
 from axes.handlers.proxy import AxesProxyHandler
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
+from django.views.decorators.cache import never_cache
 from drf_yasg import openapi
+from google.auth.exceptions import GoogleAuthError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -14,6 +20,7 @@ from rest_framework_simplejwt.utils import get_md5_hash_password
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenRefreshView
 
 from horilla_api.docs import document_api
+from horilla_auth import google_oidc
 
 from ...api_methods.base.capabilities import build_capabilities
 from ...api_serializers.auth.serializers import (
@@ -23,9 +30,55 @@ from ...api_serializers.auth.serializers import (
 )
 
 
+def _auth_payload(user):
+    refresh = RefreshToken.for_user(user)
+    employee = user.employee_get
+    face_detection = False
+    face_detection_image = None
+    geo_fencing = False
+    company_id = None
+    # Each of these is optional configuration: get_company() can
+    # return None, the face_detection and geo_fencing reverse
+    # one-to-ones need not exist, and an ImageField with no file
+    # raises on .url. Narrowed from bare excepts so a genuine
+    # failure in this block is logged instead of silently
+    # degrading the login response.
+    company = employee.get_company()
+    if company is not None:
+        company_id = company.id
+        try:
+            face_detection = company.face_detection.start
+        except (ObjectDoesNotExist, AttributeError):
+            pass
+        # the company's own fence, else the global one
+        from geofencing.models import GeoFencing
+
+        fence = GeoFencing.for_company(company)
+        geo_fencing = bool(fence and fence.start)
+    try:
+        face_detection_image = employee.face_detection.image.url
+    except (ObjectDoesNotExist, AttributeError, ValueError):
+        pass
+    return {
+        "employee": GetEmployeeSerializer(employee).data,
+        "access": str(refresh.access_token),
+        # Previously minted and thrown away, which left clients
+        # with a 60-minute session and no way to extend it.
+        "refresh": str(refresh),
+        # Role, permission set and feature manifest in the login
+        # response so the client can paint its navigation on the
+        # first frame rather than after a dozen permission probes.
+        "capabilities": build_capabilities(user),
+        "face_detection": face_detection,
+        "face_detection_image": face_detection_image,
+        "geo_fencing": geo_fencing,
+        "company_id": company_id,
+    }
+
+
 class LoginAPIView(APIView):
     permission_classes = [AllowAny]
-    # The only unauthenticated write path in the API. django-axes locks an
+    # django-axes locks an
     # account after repeated *failed* passwords, but counts nothing when the
     # credentials are valid -- so a leaked password can be replayed to mint
     # tokens as fast as the server answers. ScopedRateThrottle bounds that
@@ -86,50 +139,7 @@ class LoginAPIView(APIView):
             # and axes raises rather than silently allowing it.
             user = authenticate(request, username=username, password=password)
             if user:
-                refresh = RefreshToken.for_user(user)
-                employee = user.employee_get
-                face_detection = False
-                face_detection_image = None
-                geo_fencing = False
-                company_id = None
-                # Each of these is optional configuration: get_company() can
-                # return None, the face_detection and geo_fencing reverse
-                # one-to-ones need not exist, and an ImageField with no file
-                # raises on .url. Narrowed from bare excepts so a genuine
-                # failure in this block is logged instead of silently
-                # degrading the login response.
-                company = employee.get_company()
-                if company is not None:
-                    company_id = company.id
-                    try:
-                        face_detection = company.face_detection.start
-                    except (ObjectDoesNotExist, AttributeError):
-                        pass
-                    # the company's own fence, else the global one
-                    from geofencing.models import GeoFencing
-
-                    fence = GeoFencing.for_company(company)
-                    geo_fencing = bool(fence and fence.start)
-                try:
-                    face_detection_image = employee.face_detection.image.url
-                except (ObjectDoesNotExist, AttributeError, ValueError):
-                    pass
-                result = {
-                    "employee": GetEmployeeSerializer(employee).data,
-                    "access": str(refresh.access_token),
-                    # Previously minted and thrown away, which left clients
-                    # with a 60-minute session and no way to extend it.
-                    "refresh": str(refresh),
-                    # Role, permission set and feature manifest in the login
-                    # response so the client can paint its navigation on the
-                    # first frame rather than after a dozen permission probes.
-                    "capabilities": build_capabilities(user),
-                    "face_detection": face_detection,
-                    "face_detection_image": face_detection_image,
-                    "geo_fencing": geo_fencing,
-                    "company_id": company_id,
-                }
-                return Response(result, status=200)
+                return Response(_auth_payload(user), status=200)
             else:
                 # A locked-out caller must be told so, not handed another 401.
                 # AxesStandaloneBackend returns None rather than raising, so
@@ -152,6 +162,34 @@ class LoginAPIView(APIView):
             return Response(
                 {"error": _("Please provide Username and Password")}, status=400
             )
+
+
+class GoogleLoginAPIView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+    throttle_scope = "login"
+
+    @method_decorator(never_cache)
+    def post(self, request):
+        token = request.data.get("id_token") if isinstance(request.data, dict) else None
+        if not isinstance(token, str) or not 0 < len(token) <= 8192:
+            return Response({"error": _("Google sign-in evidence is required.")}, status=400)
+        if not settings.GOOGLE_OIDC_CLIENT_ID:
+            return Response({"error": _("Google sign-in is unavailable.")}, status=503)
+
+        try:
+            claims = google_oidc.verify_workspace_id_token(token)
+        except (GoogleAuthError, requests.RequestException, ValueError, TypeError):
+            return Response({"error": _("Google sign-in could not be verified.")}, status=401)
+
+        identity = google_oidc.workspace_identity(claims)
+        user = google_oidc.approved_workspace_user(identity) if identity else None
+        if user is None:
+            return Response(
+                {"error": _("Use an approved eQOURSE Google account to sign in.")},
+                status=403,
+            )
+        return Response(_auth_payload(user), status=200)
 
 
 class PasswordResetAPIView(APIView):

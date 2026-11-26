@@ -110,11 +110,36 @@ def _verified_claims(code, verifier):
             allow_redirects=False,
         )
         response.raise_for_status()
-        token = response.json()["id_token"]
-        return verify_oauth2_token(
-            token, partial(Request(session=http), timeout=8),
-            audience=settings.GOOGLE_OIDC_CLIENT_ID,
-        )
+        return verify_workspace_id_token(response.json()["id_token"], http)
+
+
+def verify_workspace_id_token(token, http=None):
+    """Verify an ID token issued to the eQOURSE Web OAuth client."""
+    if http is None:
+        with requests.Session() as session:
+            return verify_workspace_id_token(token, session)
+    return verify_oauth2_token(
+        token,
+        partial(Request(session=http), timeout=8),
+        audience=settings.GOOGLE_OIDC_CLIENT_ID,
+    )
+
+
+def workspace_identity(claims):
+    """Return the verified Workspace email and immutable Google subject."""
+    domain = settings.GOOGLE_OIDC_HOSTED_DOMAIN
+    email = claims.get("email")
+    subject = claims.get("sub")
+    if (
+        claims.get("email_verified") is not True
+        or claims.get("hd") != domain
+        or not isinstance(email, str)
+        or email.lower().rpartition("@")[2] != domain
+        or not isinstance(subject, str)
+        or not 0 < len(subject) <= 255
+    ):
+        return None
+    return email.lower(), subject
 
 
 def _approved_user(email, subject):
@@ -142,6 +167,14 @@ def _approved_user(email, subject):
         return user
 
 
+def approved_workspace_user(identity):
+    """Look up approval and bind the Google subject on first sign-in."""
+    try:
+        return _approved_user(*identity)
+    except IntegrityError:
+        return None
+
+
 @require_GET
 @never_cache
 def callback(request):
@@ -167,26 +200,13 @@ def callback(request):
         messages.error(request, _("Google sign-in could not be verified. Please try again."))
         return _private_response(redirect("login"))
 
-    domain = settings.GOOGLE_OIDC_HOSTED_DOMAIN
-    email = claims.get("email")
-    subject = claims.get("sub")
-    if (
-        not _matches(attempt["nonce"], claims.get("nonce"))
-        or claims.get("email_verified") is not True
-        or claims.get("hd") != domain
-        or not isinstance(email, str)
-        or email.lower().rpartition("@")[2] != domain
-        or not isinstance(subject, str)
-        or not 0 < len(subject) <= 255
-    ):
+    identity = workspace_identity(claims)
+    if not _matches(attempt["nonce"], claims.get("nonce")) or identity is None:
         logger.info("Google sign-in did not meet the Workspace account requirements")
         messages.error(request, _("Use your verified eQOURSE Google account to sign in."))
         return _private_response(redirect("login"))
 
-    try:
-        user = _approved_user(email.lower(), subject)
-    except IntegrityError:
-        user = None
+    user = approved_workspace_user(identity)
     if user is None:
         logger.info("Google Workspace identity verified without an approved Horilla account")
         messages.warning(
