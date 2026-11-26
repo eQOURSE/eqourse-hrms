@@ -147,6 +147,60 @@
         </div>
     </div>
 
+    <div class="oh-profile-section__card mb-4">
+        <div class="p-3">
+            <h2 class="oh-profile-section__title mb-2">{% trans "Approved Face Photo" %}</h2>
+            <p class="text-muted mb-3">
+                {% trans "This photo is used to verify your face during check-in and check-out. It is separate from your profile photo." %}
+            </p>
+            {% if face_registration_enabled %}
+                <form
+                    hx-post="{% url 'register-own-face' %}"
+                    hx-target="#facePhotoMessage"
+                    hx-swap="innerHTML"
+                    hx-encoding="multipart/form-data"
+                >
+                    {% csrf_token %}
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        {% if approved_face and approved_face.image %}
+                            <img
+                                src="{{ approved_face.image.url }}"
+                                class="oh-profile-section__avatar"
+                                alt="{% trans 'Approved face photo' %}"
+                            >
+                        {% endif %}
+                        <div>
+                            <label class="oh-label" for="id_approved_face_photo">
+                                {% trans "Choose a clear photo with one face" %}
+                            </label>
+                            <input
+                                type="file"
+                                name="image"
+                                id="id_approved_face_photo"
+                                class="oh-input oh-input--file oh-input--file-sm"
+                                accept="image/*"
+                                capture="user"
+                                required
+                            >
+                        </div>
+                    </div>
+                    <button type="submit" class="oh-btn oh-btn--secondary oh-btn--shadow">
+                        {% if approved_face and approved_face.image %}
+                            {% trans "Replace Approved Face Photo" %}
+                        {% else %}
+                            {% trans "Register Face Photo" %}
+                        {% endif %}
+                    </button>
+                </form>
+                <div id="facePhotoMessage" class="mt-3"></div>
+            {% else %}
+                <div class="oh-alert oh-alert--light">
+                    {% trans "Face registration is not enabled for your company. Please contact HR." %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="oh-modal" id="uploadPhotoModal" role="dialog" aria-labelledby="uploadPhotoModal" aria-hidden="true">
         <div class="oh-modal__dialog">
             <div class="oh-modal__dialog-header">

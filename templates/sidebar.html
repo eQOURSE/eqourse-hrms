@@ -67,19 +67,7 @@
 <div class="oh-sidebar" style="position: -webkit-sticky; position: sticky; top: 0; height: 100vh; overflow-x: hidden">
     <div class="oh-sidebar__company" style="padding: 14px">
         {% if request.session.selected_company_instance %}
-            <span class="mr-3">
-                {% if not request.session.selected_company_instance %}
-                    <img
-                        src="https://ui-avatars.com/api/?name=C&background=random"
-                        style="width: 34px; border-radius: 3px"
-                    >
-                {% else %}
-                    <img
-                        src="{% if request.session.selected_company_instance.icon and request.session.selected_company_instance.icon != '/404/' %}{{request.session.selected_company_instance.icon}}{% else %}https://ui-avatars.com/api/?name=C&background=random{% endif %}"
-                        style="width: 34px; border-radius: 3px"
-                    >
-                {% endif %}
-            </span>
+            <span class="mr-3"><img src="{% static 'images/ui/eqourse-logo.webp' %}" alt="eQOURSE Work" style="width: 34px; height: 34px; object-fit: contain; border-radius: 3px"></span>
             <div class="oh-sidebar__company-details">
                 <span
                     class="oh-sidebar__company-title"
@@ -90,19 +78,7 @@
                 </a>
             </div>
         {% else %}
-            <span class="mr-3">
-                {% if request.user.employee_get.employee_work_info.company_id.icon == None %}
-                    <img
-                        src="https://ui-avatars.com/api/?name=C&background=random"
-                        style="width: 34px; border-radius: 3px"
-                    >
-                {% else %}
-                    <img
-                        src="{{request.user.employee_get.employee_work_info.company_id.icon.url}}"
-                        style="width: 34px; border-radius: 3px"
-                    >
-                {% endif %}
-            </span>
+            <span class="mr-3"><img src="{% static 'images/ui/eqourse-logo.webp' %}" alt="eQOURSE Work" style="width: 34px; height: 34px; object-fit: contain; border-radius: 3px"></span>
             <div class="oh-sidebar__company-details">
                 <span
                     class="oh-sidebar__company-title"

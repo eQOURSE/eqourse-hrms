@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required
-from django.http import QueryDict
+from django.http import HttpResponse, QueryDict
 from django.shortcuts import redirect, render
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
@@ -16,6 +16,8 @@ from horilla.decorators import hx_request_required, login_required
 from horilla.http.response import HorillaRedirect
 
 from .serializers import *
+from .models import EmployeeFaceDetection
+from .verification import FaceVerificationError, validate_reference_face_image
 
 
 class FaceDetectionConfigAPIView(APIView):
@@ -186,3 +188,54 @@ def enable_disable_face_detection(request):
         message = _("enabled") if instance.start else _("disabled")
         messages.success(request, _("Face detection {} successfully").format(message))
     return HorillaRedirect(request)
+
+
+@login_required
+def update_own_face_photo(request):
+    """Register or replace the signed-in employee's approved face photo."""
+
+    if request.method != "POST":
+        return HttpResponse("Method not allowed.", status=405)
+
+    employee = getattr(request.user, "employee_get", None)
+    if employee is None:
+        return HttpResponse(
+            '<div class="oh-alert oh-alert--danger">Your employee profile is not configured.</div>',
+        )
+    company = employee.get_company()
+    face_config = FaceDetection.objects.filter(company_id=company).first()
+    if not face_config or not face_config.start:
+        return HttpResponse(
+            '<div class="oh-alert oh-alert--danger">Face registration is not enabled. Please contact HR.</div>',
+        )
+
+    uploaded_image = request.FILES.get("image")
+    try:
+        if uploaded_image and uploaded_image.size > 10 * 1024 * 1024:
+            raise FaceVerificationError(
+                "The face photo must be 10 MB or smaller."
+            )
+        if uploaded_image and not str(uploaded_image.content_type or "").startswith(
+            "image/"
+        ):
+            raise FaceVerificationError(
+                "Please upload an image file for the approved face photo."
+            )
+        validate_reference_face_image(uploaded_image)
+    except FaceVerificationError as exc:
+        return HttpResponse(
+            f'<div class="oh-alert oh-alert--danger">{exc}</div>'
+        )
+
+    reference, _created = EmployeeFaceDetection.objects.get_or_create(
+        employee_id=employee
+    )
+    old_image = reference.image
+    old_image_name = old_image.name if old_image else ""
+    reference.image = uploaded_image
+    reference.save()
+    if old_image_name and old_image_name != reference.image.name:
+        reference.image.storage.delete(old_image_name)
+    return HttpResponse(
+        '<div class="oh-alert oh-alert--success">Approved face photo saved. You can replace it any time.</div>'
+    )

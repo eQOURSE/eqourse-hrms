@@ -1,16 +1,10 @@
 {
-    "name": "Horilla",
-    "short_name": "Horilla",
-    "description": "Free and Open Source HR Software",
+    "name": "eQOURSE Work",
+    "short_name": "eQOURSE",
+    "description": "eQOURSE employee workspace",
     "start_url": "/",
     "display": "standalone",
     "background_color": "orangered",
     "theme_color": "orangered",
-    "icons": [
-      {
-        "src": "/static/favicons/apple-touch-icon.png",
-        "sizes": "192x192",
-        "type": "image/png"
-      }
-    ]
+    "icons": [{"src": "/static/images/ui/eqourse-logo.webp", "sizes": "any", "type": "image/webp"}]
   }

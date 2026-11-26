@@ -3304,8 +3304,8 @@ class PassWordResetForm(forms.Form):
         a white-labelled client's mail always reads as coming from their
         own organisation regardless of who triggers it.
         """
-        name = "Horilla"
-        logo_path = finders.find("images/ui/horilla-sticker-round.png")
+        name = "eQOURSE Work"
+        logo_path = finders.find("images/ui/eqourse-logo.svg")
         if getattr(settings, "WHITE_LABELLING", False):
             company = Company.objects.filter(hq=True).last()
             if company:

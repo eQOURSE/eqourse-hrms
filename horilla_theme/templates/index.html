@@ -7,29 +7,41 @@
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title class="time-runner stop-runner">{{ white_label_company_name }}</title>
+        <title class="time-runner stop-runner">eQOURSE Work</title>
         <link rel="stylesheet" href="{% static 'build/css/sweetalert2.min.css' %}">
         <link rel="stylesheet" href="{% static 'build/css/summernote-lite.min.css' %}">
         <link rel="stylesheet" href="{% static 'build/css/orgChart.css' %}">
         <link rel="stylesheet" href="{% static 'build/css/driver.min.css' %}">
+        <style>
+            @media (max-width: 767.98px) {
+                body { overflow-x: hidden; }
+                #main { min-width: 0; width: 100%; }
+                .oh-main-header, .oh-main-content { min-width: 0; }
+                .oh-navbar, .oh-navbar__wrapper { height: auto; min-height: 58px; }
+                .oh-navbar__wrapper { width: 100%; max-width: 100%; padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+                .oh-navbar__systray { width: 100%; height: auto; min-height: 48px; flex: 1 0 100%; flex-wrap: wrap; justify-content: flex-start; gap: 8px; }
+                #attendance-activity-container { flex: 1 0 100%; order: -1; min-width: 0; }
+                #attendance-activity-container .eqourse-punch-btn { width: 100%; min-height: 46px; margin: 0 !important; }
+            }
+        </style>
 
         <link rel="manifest" href="{% static 'build/manifest.json' %}">
         <link
             rel="apple-touch-icon"
             sizes="180x180"
-            href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'favicons/apple-touch-icon.png' %}{% endif %}"
+            href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'images/ui/eqourse-logo.webp' %}{% endif %}"
         >
         <link
             rel="icon"
             type="image/png"
             sizes="32x32"
-            href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'favicons/favicon-32x32.png' %}{% endif %}"
+            href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'images/ui/eqourse-logo.webp' %}{% endif %}"
         >
         <link
             rel="icon"
             type="image/png"
             sizes="16x16"
-            href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'favicons/favicon-16x16.png' %}{% endif %}"
+            href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'images/ui/eqourse-logo.webp' %}{% endif %}"
         >
 
         {% comment %} defer, not removed: tailwind.css below is a periodically

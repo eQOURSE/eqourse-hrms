@@ -17,6 +17,7 @@ RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
         build-essential \
+        cmake \
         libpq-dev \
         libjpeg-dev \
         zlib1g-dev \
@@ -47,7 +48,7 @@ ARG SPACY_MODEL_VERSION=3.8.0
 # gunicorn and psycopg2-binary are pinned in requirements.txt -- do not repeat
 # them here, an unpinned CLI copy silently overrides the pin.
 RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && CMAKE_BUILD_PARALLEL_LEVEL=1 pip install --no-cache-dir -r requirements.txt
 
 # Separate step on purpose: chaining this onto the install with || would report
 # a failed pip run as a version mismatch and send the next person the wrong way.
@@ -102,6 +103,10 @@ RUN useradd --create-home --uid 1000 appuser
 
 # Copy virtual environment from builder stage WITH correct ownership
 COPY --from=builder --chown=appuser:appuser /opt/venv /opt/venv
+COPY docker/patch_face_models.py /tmp/patch_face_models.py
+RUN python /tmp/patch_face_models.py \
+    && rm /tmp/patch_face_models.py \
+    && python -c 'import face_recognition_models, face_recognition; assert callable(face_recognition.face_encodings); print("face runtime ready")' | grep -Fx 'face runtime ready'
 
 WORKDIR /app
 

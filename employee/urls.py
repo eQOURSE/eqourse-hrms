@@ -31,6 +31,7 @@ from employee.cbv import (
 )
 from employee.forms import DisciplinaryActionForm
 from employee.models import DisciplinaryAction, Employee, EmployeeTag
+from facedetection.views import update_own_face_photo
 from horilla_documents.models import DocumentRequest
 
 urlpatterns = [
@@ -135,6 +136,11 @@ urlpatterns = [
         "remove-own-profile-image/",
         views.remove_own_profile_image,
         name="remove-own-profile-image",
+    ),
+    path(
+        "register-own-face/",
+        update_own_face_photo,
+        name="register-own-face",
     ),
     path(
         "employee-profile-bank-details/",

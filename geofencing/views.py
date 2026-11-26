@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.conf import settings
 from django.contrib.auth.decorators import permission_required
 from django.http import QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
@@ -173,7 +174,13 @@ def geo_location_config(request):
         messages.error(request, _("Select a company first."))
         return render(request, "geo_config.html", {"form": GeoFencingSetupForm()})
     own_fence = GeoFencing.objects.filter(company_id=company).first()
-    instance = own_fence or GeoFencing(company_id=company)
+    instance = own_fence or GeoFencing(
+        company_id=company,
+        latitude=getattr(settings, "OFFICE_GEOFENCE_LATITUDE", 25.14402),
+        longitude=getattr(settings, "OFFICE_GEOFENCE_LONGITUDE", 75.84506),
+        radius_in_meters=getattr(settings, "OFFICE_GEOFENCE_RADIUS_METERS", 100),
+        start=True,
+    )
     form = GeoFencingSetupForm(instance=instance)
     if request.method == "POST":
         form = GeoFencingSetupForm(request.POST, instance=instance)

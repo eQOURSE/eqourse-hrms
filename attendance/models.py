@@ -76,6 +76,16 @@ class AttendanceActivity(HorillaModel):
     clock_out_date = models.DateField(null=True, verbose_name=_("Out Date"))
     out_datetime = models.DateTimeField(null=True)
     clock_out = models.TimeField(null=True, verbose_name=_("Check Out"))
+    clock_in_latitude = models.FloatField(null=True, blank=True)
+    clock_in_longitude = models.FloatField(null=True, blank=True)
+    clock_in_accuracy = models.FloatField(null=True, blank=True)
+    clock_in_location_at = models.DateTimeField(null=True, blank=True)
+    clock_in_location_address = models.CharField(max_length=512, blank=True)
+    clock_out_latitude = models.FloatField(null=True, blank=True)
+    clock_out_longitude = models.FloatField(null=True, blank=True)
+    clock_out_accuracy = models.FloatField(null=True, blank=True)
+    clock_out_location_at = models.DateTimeField(null=True, blank=True)
+    clock_out_location_address = models.CharField(max_length=512, blank=True)
     objects = HorillaCompanyManager(
         related_company_field="employee_id__employee_work_info__company_id"
     )
@@ -185,6 +195,26 @@ class AttendanceActivity(HorillaModel):
     def __str__(self):
         return f"{self.employee_id} - {self.attendance_date} - {self.clock_in} - {self.clock_out}"
 
+    def clock_in_location(self):
+        if self.clock_in_latitude is None or self.clock_in_longitude is None:
+            return "—"
+        coordinates = f"{self.clock_in_latitude:.6f}, {self.clock_in_longitude:.6f}"
+        return (
+            f"{self.clock_in_location_address} ({coordinates})"
+            if self.clock_in_location_address
+            else coordinates
+        )
+
+    def clock_out_location(self):
+        if self.clock_out_latitude is None or self.clock_out_longitude is None:
+            return "—"
+        coordinates = f"{self.clock_out_latitude:.6f}, {self.clock_out_longitude:.6f}"
+        return (
+            f"{self.clock_out_location_address} ({coordinates})"
+            if self.clock_out_location_address
+            else coordinates
+        )
+
 
 class BatchAttendance(HorillaModel):
     """
@@ -251,6 +281,16 @@ class Attendance(HorillaModel):
     attendance_clock_out = models.TimeField(
         null=True, verbose_name=_("Check-Out"), help_text=_("Last Check-Out Time")
     )
+    clock_in_latitude = models.FloatField(null=True, blank=True)
+    clock_in_longitude = models.FloatField(null=True, blank=True)
+    clock_in_accuracy = models.FloatField(null=True, blank=True)
+    clock_in_location_at = models.DateTimeField(null=True, blank=True)
+    clock_in_location_address = models.CharField(max_length=512, blank=True)
+    clock_out_latitude = models.FloatField(null=True, blank=True)
+    clock_out_longitude = models.FloatField(null=True, blank=True)
+    clock_out_accuracy = models.FloatField(null=True, blank=True)
+    clock_out_location_at = models.DateTimeField(null=True, blank=True)
+    clock_out_location_address = models.CharField(max_length=512, blank=True)
     attendance_worked_hour = models.CharField(
         null=True,
         default="00:00",
@@ -320,6 +360,26 @@ class Attendance(HorillaModel):
             HorillaAuditInfo,
         ],
     )
+
+    def attendance_clock_in_location(self):
+        if self.clock_in_latitude is None or self.clock_in_longitude is None:
+            return "—"
+        coordinates = f"{self.clock_in_latitude:.6f}, {self.clock_in_longitude:.6f}"
+        return (
+            f"{self.clock_in_location_address} ({coordinates})"
+            if self.clock_in_location_address
+            else coordinates
+        )
+
+    def attendance_clock_out_location(self):
+        if self.clock_out_latitude is None or self.clock_out_longitude is None:
+            return "—"
+        coordinates = f"{self.clock_out_latitude:.6f}, {self.clock_out_longitude:.6f}"
+        return (
+            f"{self.clock_out_location_address} ({coordinates})"
+            if self.clock_out_location_address
+            else coordinates
+        )
 
     def get_instance_id(self):
         return self.id

@@ -72,13 +72,13 @@ class FenceForCompanyTests(TestCase):
         nearby = RequestFactory().get("/", {"latitude": "12.97", "longitude": "77.59"})
         self.assertIsNone(geofence_denial_web(nearby, self.acme))
 
-    def test_a_switched_off_global_fence_blocks_nobody(self, nominatim):
+    def test_a_switched_off_global_fence_blocks_onsite_punches(self, nominatim):
         from attendance.methods.utils import geofence_denial_web
 
         nominatim.return_value.reverse.return_value = MagicMock()
         make_fence(None, start=False)
         far_away = RequestFactory().get("/", {"latitude": "40.0", "longitude": "-74.0"})
-        self.assertIsNone(geofence_denial_web(far_away, self.acme))
+        self.assertIsNotNone(geofence_denial_web(far_away, self.acme))
 
 
 @patch("geofencing.models.Nominatim")
@@ -116,11 +116,11 @@ class WhereTheFenceIsReadTests(TestCase):
             geofence_denial(self.request_for(self.acme))
         location_check.assert_called_once()
 
-    def test_no_fence_at_all_lets_the_punch_through(self, nominatim):
+    def test_no_fence_at_all_blocks_onsite_punches(self, nominatim):
         from horilla_api.api_views.attendance.views import geofence_denial
 
         with patch(self.LOCATION_CHECK) as location_check:
-            self.assertIsNone(geofence_denial(self.request_for(self.acme)))
+            self.assertIsNotNone(geofence_denial(self.request_for(self.acme)))
         location_check.assert_not_called()
 
     def test_the_mobile_config_reports_the_global_fence(self, nominatim):
@@ -177,7 +177,7 @@ class WhereTheFenceIsReadTests(TestCase):
         self.assertEqual(GeoFencing.for_company(self.acme), own)
         self.assertEqual(_geofence_block(self.employee), {"enabled": False})
         far_away = RequestFactory().get("/", {"latitude": "40.0", "longitude": "-74.0"})
-        self.assertIsNone(geofence_denial_web(far_away, self.acme))
+        self.assertIsNotNone(geofence_denial_web(far_away, self.acme))
 
 
 @patch("geofencing.models.Nominatim")

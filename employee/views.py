@@ -266,6 +266,10 @@ def self_info_update(request):
         instance=EmployeeBankDetails.objects.filter(employee_id=employee).first()
     )
     form = EmployeeForm(instance=Employee.objects.filter(employee_user_id=user).first())
+    from facedetection.models import EmployeeFaceDetection, FaceDetection
+
+    face_config = FaceDetection.objects.filter(company_id=employee.get_company()).first()
+    approved_face = EmployeeFaceDetection.objects.filter(employee_id=employee).first()
     if request.POST:
         if request.POST.get("employee_first_name") is not None:
             instance = Employee.objects.filter(employee_user_id=request.user).first()
@@ -291,6 +295,8 @@ def self_info_update(request):
         {
             "form": form,
             "bank_form": bank_form,
+            "face_registration_enabled": bool(face_config and face_config.start),
+            "approved_face": approved_face,
         },
     )
 

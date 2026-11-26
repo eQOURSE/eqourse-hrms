@@ -1,4 +1,5 @@
 from axes.handlers.proxy import AxesProxyHandler
+from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.translation import gettext_lazy as _
@@ -12,6 +13,8 @@ from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.utils import get_md5_hash_password
 from rest_framework_simplejwt.views import TokenBlacklistView, TokenRefreshView
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 
 from horilla_api.docs import document_api
 
@@ -21,6 +24,40 @@ from ...api_serializers.auth.serializers import (
     LoginRequestSerializer,
     PasswordResetSerializer,
 )
+
+
+def _auth_payload(user):
+    refresh = RefreshToken.for_user(user)
+    employee = user.employee_get
+    face_detection = False
+    face_detection_image = None
+    geo_fencing = False
+    company_id = None
+    company = employee.get_company()
+    if company is not None:
+        company_id = company.id
+        try:
+            face_detection = company.face_detection.start
+        except (ObjectDoesNotExist, AttributeError):
+            pass
+        from geofencing.models import GeoFencing
+
+        fence = GeoFencing.for_company(company)
+        geo_fencing = bool(fence and fence.start)
+    try:
+        face_detection_image = employee.face_detection.image.url
+    except (ObjectDoesNotExist, AttributeError, ValueError):
+        pass
+    return {
+        "employee": GetEmployeeSerializer(employee).data,
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+        "capabilities": build_capabilities(user),
+        "face_detection": face_detection,
+        "face_detection_image": face_detection_image,
+        "geo_fencing": geo_fencing,
+        "company_id": company_id,
+    }
 
 
 class LoginAPIView(APIView):
@@ -86,50 +123,7 @@ class LoginAPIView(APIView):
             # and axes raises rather than silently allowing it.
             user = authenticate(request, username=username, password=password)
             if user:
-                refresh = RefreshToken.for_user(user)
-                employee = user.employee_get
-                face_detection = False
-                face_detection_image = None
-                geo_fencing = False
-                company_id = None
-                # Each of these is optional configuration: get_company() can
-                # return None, the face_detection and geo_fencing reverse
-                # one-to-ones need not exist, and an ImageField with no file
-                # raises on .url. Narrowed from bare excepts so a genuine
-                # failure in this block is logged instead of silently
-                # degrading the login response.
-                company = employee.get_company()
-                if company is not None:
-                    company_id = company.id
-                    try:
-                        face_detection = company.face_detection.start
-                    except (ObjectDoesNotExist, AttributeError):
-                        pass
-                    # the company's own fence, else the global one
-                    from geofencing.models import GeoFencing
-
-                    fence = GeoFencing.for_company(company)
-                    geo_fencing = bool(fence and fence.start)
-                try:
-                    face_detection_image = employee.face_detection.image.url
-                except (ObjectDoesNotExist, AttributeError, ValueError):
-                    pass
-                result = {
-                    "employee": GetEmployeeSerializer(employee).data,
-                    "access": str(refresh.access_token),
-                    # Previously minted and thrown away, which left clients
-                    # with a 60-minute session and no way to extend it.
-                    "refresh": str(refresh),
-                    # Role, permission set and feature manifest in the login
-                    # response so the client can paint its navigation on the
-                    # first frame rather than after a dozen permission probes.
-                    "capabilities": build_capabilities(user),
-                    "face_detection": face_detection,
-                    "face_detection_image": face_detection_image,
-                    "geo_fencing": geo_fencing,
-                    "company_id": company_id,
-                }
-                return Response(result, status=200)
+                return Response(_auth_payload(user), status=200)
             else:
                 # A locked-out caller must be told so, not handed another 401.
                 # AxesStandaloneBackend returns None rather than raising, so
@@ -152,6 +146,36 @@ class LoginAPIView(APIView):
             return Response(
                 {"error": _("Please provide Username and Password")}, status=400
             )
+
+
+class GoogleLoginAPIView(APIView):
+    permission_classes = [AllowAny]
+    throttle_scope = "login"
+
+    def post(self, request):
+        raw_token = request.data.get("id_token")
+        # The mobile client requests an ID token for this Web OAuth client.
+        # The Android client ID and release SHA-1 identify the installed app
+        # in Google Cloud; they are not the backend token audience.
+        client_id = getattr(settings, "GOOGLE_SERVER_CLIENT_ID", "")
+        hosted_domain = getattr(settings, "GOOGLE_ALLOWED_HOSTED_DOMAIN", "eqourse.com").lower()
+        if not raw_token:
+            return Response({"error": _("Google sign-in evidence is required.")}, status=400)
+        if not client_id:
+            return Response({"error": _("Google sign-in is not configured yet. Ask HR.")}, status=503)
+        try:
+            claims = google_id_token.verify_oauth2_token(
+                raw_token, google_requests.Request(), audience=client_id
+            )
+        except ValueError:
+            return Response({"error": _("Google sign-in could not be verified.")}, status=401)
+        email = str(claims.get("email", "")).strip().lower()
+        if not email or claims.get("email_verified") is not True or email.rsplit("@", 1)[-1] != hosted_domain:
+            return Response({"error": _("Use an approved @%(domain)s account.") % {"domain": hosted_domain}}, status=403)
+        user = get_user_model().objects.filter(email__iexact=email, is_active=True).first()
+        if user is None or not hasattr(user, "employee_get"):
+            return Response({"error": _("This Google account is not approved for eQOURSE Work.")}, status=403)
+        return Response(_auth_payload(user), status=200)
 
 
 class PasswordResetAPIView(APIView):

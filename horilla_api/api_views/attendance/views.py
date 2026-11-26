@@ -23,6 +23,7 @@ from attendance.models import (
 )
 from attendance.views.clock_in_out import *
 from attendance.views.clock_in_out import clock_out
+from attendance.punch_security import PunchEvidenceError, validate_punch_evidence
 from attendance.views.dashboard import (
     find_expected_attendances,
     find_late_come,
@@ -71,8 +72,9 @@ def geofence_denial(request):
     the fence exists to stop. An enabled fence that cannot be evaluated now
     denies instead.
 
-    A company with no ``GeoFencing`` row, or one whose fence is switched off, is
-    not using the feature: there is nothing to enforce and the punch proceeds.
+    A company with no ``GeoFencing`` row, or one whose fence is switched off,
+    blocks onsite punches. HR must configure and enable the approved office
+    fence before attendance can be recorded.
     """
     # Each lookup is resolved separately and on its own terms. An earlier
     # version wrapped the lot in `except (ObjectDoesNotExist, AttributeError)`,
@@ -94,11 +96,16 @@ def geofence_denial(request):
 
     geo_fencing = GeoFencing.for_company(company)
     if geo_fencing is None:
-        # No GeoFencing row at all: the feature is not in use here.
-        return None
+        return Response(
+            {"error": _("The office geofence is missing or disabled. Onsite attendance is blocked.")},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     if not geo_fencing.start:
-        return None
+        return Response(
+            {"error": _("The office geofence is missing or disabled. Onsite attendance is blocked.")},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     from geofencing.views import GeoFencingEmployeeLocationCheckAPIView
 
@@ -139,10 +146,16 @@ class ClockInAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        employee = getattr(request.user, "employee_get", None)
+        if employee is None:
+            return Response(
+                {"error": _("Your employee profile is not configured.")}, status=400
+            )
+        try:
+            punch_evidence = validate_punch_evidence(request, employee, "check-in")
+        except PunchEvidenceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         if not request.user.employee_get.check_online():
-            denial = geofence_denial(request)
-            if denial is not None:
-                return denial
             employee, work_info = employee_exists(request)
             datetime_now = datetime.now()
             if request.__dict__.get("datetime"):
@@ -193,6 +206,7 @@ class ClockInAPIView(APIView):
                     start_time=start_time_sec,
                     end_time=end_time_sec,
                     in_datetime=datetime_now,
+                    punch_evidence=punch_evidence,
                 )
                 return Response({"message": "Clocked-In"}, status=200)
             return Response(
@@ -216,23 +230,22 @@ class ClockOutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        denial = geofence_denial(request)
-        if denial is not None:
-            return denial
+        employee = getattr(request.user, "employee_get", None)
+        if employee is None:
+            return Response(
+                {"error": _("Your employee profile is not configured.")}, status=400
+            )
+        try:
+            punch_evidence = validate_punch_evidence(request, employee, "check-out")
+        except PunchEvidenceError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         if request.user.employee_get.check_online():
-            current_date = date.today()
-            current_time = datetime.now().time()
-            current_datetime = datetime.now()
-
             try:
-                clock_out(
-                    Request(
-                        user=request.user,
-                        date=current_date,
-                        time=current_time,
-                        datetime=current_datetime,
-                    )
-                )
+                django_request = getattr(request, "_request", request)
+                django_request.__dict__["punch_evidence"] = punch_evidence
+                django_request.META["HTTP_HX_REQUEST"] = "true"
+                django_request.META["HTTP_X_PUNCH_CLIENT"] = "1"
+                clock_out(django_request)
                 return Response({"message": "Clocked-Out"}, status=200)
 
             except Exception as error:
