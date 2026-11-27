@@ -4,13 +4,23 @@ from __future__ import annotations
 
 import io
 
+import numpy as np
 from django.conf import settings
+from PIL import Image, ImageOps
 
 from .models import EmployeeFaceDetection
 
 
 class FaceVerificationError(Exception):
     """A user-actionable reason why a punch image cannot be accepted."""
+
+
+def _face_encodings(face_model, image_bytes):
+    with Image.open(io.BytesIO(image_bytes)) as source:
+        # Android camera JPEGs can store landscape pixels with a portrait EXIF
+        # orientation. The face detector needs the actual upright pixels.
+        pixels = np.array(ImageOps.exif_transpose(source).convert("RGB"))
+    return face_model.face_encodings(pixels)
 
 
 def validate_reference_face_image(uploaded_image) -> None:
@@ -28,9 +38,7 @@ def validate_reference_face_image(uploaded_image) -> None:
             raise FaceVerificationError(
                 "The selected photo is empty. Please choose another photo."
             )
-        faces = face_recognition.face_encodings(
-            face_recognition.load_image_file(io.BytesIO(image_bytes))
-        )
+        faces = _face_encodings(face_recognition, image_bytes)
     except FaceVerificationError:
         raise
     except Exception as exc:
@@ -84,12 +92,8 @@ def verify_employee_face(employee, uploaded_image) -> None:
             )
         with reference.image.open("rb") as reference_file:
             reference_bytes = reference_file.read()
-        reference_faces = face_recognition.face_encodings(
-            face_recognition.load_image_file(io.BytesIO(reference_bytes))
-        )
-        live_faces = face_recognition.face_encodings(
-            face_recognition.load_image_file(io.BytesIO(live_bytes))
-        )
+        reference_faces = _face_encodings(face_recognition, reference_bytes)
+        live_faces = _face_encodings(face_recognition, live_bytes)
     except FaceVerificationError:
         raise
     except Exception as exc:
@@ -101,9 +105,14 @@ def verify_employee_face(employee, uploaded_image) -> None:
         raise FaceVerificationError(
             "Your approved face photo must contain exactly one clear face."
         )
-    if len(live_faces) != 1:
+    if len(live_faces) == 0:
         raise FaceVerificationError(
-            "Please keep exactly one face visible to the camera and try again."
+            "No face was detected. Hold the phone at eye level, face the camera "
+            "in even light, and retake the photo."
+        )
+    if len(live_faces) > 1:
+        raise FaceVerificationError(
+            "More than one face was detected. Keep only your face in the frame."
         )
 
     tolerance = float(getattr(settings, "FACE_MATCH_TOLERANCE", 0.48))
