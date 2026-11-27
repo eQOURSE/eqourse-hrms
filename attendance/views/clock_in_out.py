@@ -528,6 +528,77 @@ def early_out(attendance, start_time, end_time, shift):
     return
 
 
+def checkout_ip_allowed(request, allowed_attendance_ips):
+    """Apply an enabled network policy to a checkout."""
+    if not allowed_attendance_ips or not allowed_attendance_ips.is_enabled:
+        return True
+    ip = get_client_ip(request)
+    allowed_ips = (allowed_attendance_ips.additional_data or {}).get("allowed_ips", [])
+    for allowed_ip in allowed_ips:
+        try:
+            if ipaddress.ip_address(ip) in ipaddress.ip_network(allowed_ip, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def record_checkout(employee, work_info, checked_out_at, date_today, now, punch_evidence):
+    """Save the checkout and run the same shift bookkeeping for web and API."""
+    shift = work_info.shift_id
+    day = date_today.strftime("%A").lower()
+    day = EmployeeShiftDay.objects.get(day=day)
+    attendance = (
+        Attendance.objects.filter(employee_id=employee)
+        .order_by("id", "attendance_date")
+        .last()
+    )
+    if attendance is not None:
+        if not attendance.attendance_day:
+            day_name = attendance.attendance_date.strftime("%A").lower()
+            attendance.attendance_day = EmployeeShiftDay.objects.get(day=day_name)
+            attendance.save(update_fields=["attendance_day"])
+        day = attendance.attendance_day
+    minimum_hour, start_time_sec, end_time_sec = shift_schedule_today(
+        day=day, shift=shift
+    )
+    attendance = clock_out_attendance_and_activity(
+        employee=employee,
+        date_today=date_today,
+        now=now,
+        out_datetime=checked_out_at,
+        punch_evidence=punch_evidence,
+    )
+    if attendance:
+        early_out_instance = attendance.late_come_early_out.filter(type="early_out")
+        is_night_shift = attendance.is_night_shift()
+        next_date = attendance.attendance_date + timedelta(days=1)
+        if not early_out_instance.exists():
+            if is_night_shift:
+                now_sec = strtime_seconds(now)
+                mid_sec = strtime_seconds("12:00")
+
+                if (attendance.attendance_date == date_today) or (
+                    # check is next day mid
+                    mid_sec >= now_sec
+                    and date_today == next_date
+                ):
+                    early_out(
+                        attendance=attendance,
+                        start_time=start_time_sec,
+                        end_time=end_time_sec,
+                        shift=shift,
+                    )
+            elif attendance.attendance_date == date_today:
+                early_out(
+                    attendance=attendance,
+                    start_time=start_time_sec,
+                    end_time=end_time_sec,
+                    shift=shift,
+                )
+    return attendance
+
+
 @login_required
 @hx_request_required
 def clock_out(request):
@@ -555,37 +626,14 @@ def clock_out(request):
             company_id=company
         ).first()
 
-        if (
-            not request.__dict__.get("datetime")
-            and allowed_attendance_ips
-            and allowed_attendance_ips.is_enabled
+        if not request.__dict__.get("datetime") and not checkout_ip_allowed(
+            request, allowed_attendance_ips
         ):
-            # get_client_ip() only trusts X-Forwarded-For as far as the
-            # deployment's declared proxy count -- taking the client-supplied
-            # header at face value let anyone claim to be on the office
-            # network.
-            ip = get_client_ip(request)
-
-            allowed_ips = (allowed_attendance_ips.additional_data or {}).get(
-                "allowed_ips", []
+            messages.error(
+                request,
+                _("Check-Out Restricted: Your current network is not authorized"),
             )
-            ip_allowed = False
-            for allowed_ip in allowed_ips:
-                try:
-                    if ipaddress.ip_address(ip) in ipaddress.ip_network(
-                        allowed_ip, strict=False
-                    ):
-                        ip_allowed = True
-                        break
-                except ValueError:
-                    continue
-
-            if not ip_allowed:
-                messages.error(
-                    request,
-                    _("Check-Out Restricted: Your current network is not authorized"),
-                )
-                return HorillaRedirect(request)
+            return HorillaRedirect(request)
 
         datetime_now = timezone.localtime()
         if request.__dict__.get("datetime"):
@@ -610,63 +658,12 @@ def clock_out(request):
                     "is complete."
                 ),
             )
-        shift = work_info.shift_id
-        date_today = date.today()
-        if request.__dict__.get("date"):
-            date_today = request.date
-        day = date_today.strftime("%A").lower()
-        day = EmployeeShiftDay.objects.get(day=day)
-        attendance = (
-            Attendance.objects.filter(employee_id=employee)
-            .order_by("id", "attendance_date")
-            .last()
+        date_today = request.__dict__.get("date", date.today())
+        time_today = request.__dict__.get("time", datetime.now())
+        record_checkout(
+            employee, work_info, datetime_now, date_today,
+            time_today.strftime("%H:%M"), punch_evidence
         )
-        if attendance is not None:
-            if not attendance.attendance_day:
-                day_name = attendance.attendance_date.strftime("%A").lower()
-                attendance.attendance_day = EmployeeShiftDay.objects.get(day=day_name)
-                attendance.save(update_fields=["attendance_day"])
-            day = attendance.attendance_day
-        now = datetime.now().strftime("%H:%M")
-        if request.__dict__.get("time"):
-            now = request.time.strftime("%H:%M")
-        minimum_hour, start_time_sec, end_time_sec = shift_schedule_today(
-            day=day, shift=shift
-        )
-        attendance = clock_out_attendance_and_activity(
-            employee=employee,
-            date_today=date_today,
-            now=now,
-            out_datetime=datetime_now,
-            punch_evidence=punch_evidence,
-        )
-        if attendance:
-            early_out_instance = attendance.late_come_early_out.filter(type="early_out")
-            is_night_shift = attendance.is_night_shift()
-            next_date = attendance.attendance_date + timedelta(days=1)
-            if not early_out_instance.exists():
-                if is_night_shift:
-                    now_sec = strtime_seconds(now)
-                    mid_sec = strtime_seconds("12:00")
-
-                    if (attendance.attendance_date == date_today) or (
-                        # check is next day mid
-                        mid_sec >= now_sec
-                        and date_today == next_date
-                    ):
-                        early_out(
-                            attendance=attendance,
-                            start_time=start_time_sec,
-                            end_time=end_time_sec,
-                            shift=shift,
-                        )
-                elif attendance.attendance_date == date_today:
-                    early_out(
-                        attendance=attendance,
-                        start_time=start_time_sec,
-                        end_time=end_time_sec,
-                        shift=shift,
-                    )
 
         # Refresh employee from DB so template re-evaluates is_clocked_in correctly
         employee.refresh_from_db()

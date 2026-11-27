@@ -4,9 +4,11 @@ from datetime import date, datetime, timedelta, timezone
 from django import template
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.db import transaction
 from django.db.models import Case, CharField, F, Value, When
 from django.http import QueryDict
 from django.shortcuts import get_object_or_404
+from django.utils import timezone as django_timezone
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import gettext_noop
@@ -18,11 +20,12 @@ from rest_framework.views import APIView
 from attendance.models import (
     Attendance,
     AttendanceActivity,
+    AttendanceGeneralSetting,
     AttendanceOverTime,
     EmployeeShiftDay,
 )
 from attendance.views.clock_in_out import *
-from attendance.views.clock_in_out import clock_out
+from attendance.views.clock_in_out import checkout_ip_allowed, record_checkout
 from attendance.punch_security import PunchEvidenceError, validate_punch_evidence
 from attendance.views.dashboard import (
     find_expected_attendances,
@@ -32,9 +35,10 @@ from attendance.views.dashboard import (
 from attendance.views.views import *
 from base.backends import ConfiguredEmailBackend
 from base.methods import generate_pdf, sanitize_mail_template_body
-from base.models import HorillaMailTemplate
+from base.models import AttendanceAllowedIP, HorillaMailTemplate
 from base.views import is_reportingmanger
 from employee.filters import EmployeeFilter
+from employee.models import Employee
 from horilla_api.api_methods.base.pagination import HorillaPageNumberPagination
 
 from ...api_decorators.base.decorators import (
@@ -230,28 +234,55 @@ class ClockOutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        employee = getattr(request.user, "employee_get", None)
-        if employee is None:
+        employee, work_info = employee_exists(request)
+        if not employee or not employee.is_active or work_info is None:
             return Response(
-                {"error": _("Your employee profile is not configured.")}, status=400
+                {"error": _("Your employee work information is not configured.")}, status=400
+            )
+        company = work_info.company_id
+        attendance_settings = AttendanceGeneralSetting._base_manager
+        policy = attendance_settings.filter(company_id=company).first()
+        if policy is None and company is not None:
+            policy = attendance_settings.filter(company_id=None).first()
+        if policy is None or not policy.enable_check_in:
+            return Response(
+                {"error": _("Check-out is unavailable for your company.")}, status=403
+            )
+        ip_settings = AttendanceAllowedIP._base_manager
+        ip_policy = ip_settings.filter(company_id=company).first()
+        if ip_policy is None and company is not None and policy.company_id_id is None:
+            ip_policy = ip_settings.filter(company_id=None).first()
+        if not checkout_ip_allowed(request, ip_policy):
+            return Response(
+                {"error": _("Check-Out Restricted: Your current network is not authorized")},
+                status=403,
             )
         try:
             punch_evidence = validate_punch_evidence(request, employee, "check-out")
         except PunchEvidenceError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        if request.user.employee_get.check_online():
-            try:
-                django_request = getattr(request, "_request", request)
-                django_request.__dict__["punch_evidence"] = punch_evidence
-                django_request.META["HTTP_HX_REQUEST"] = "true"
-                django_request.META["HTTP_X_PUNCH_CLIENT"] = "1"
-                clock_out(django_request)
-                return Response({"message": "Clocked-Out"}, status=200)
 
-            except Exception as error:
-                logger.error("Got an error in clock_out", error)
-            # return Response({"message": "Clocked-Out"}, status=200)
-        return Response({"message": "Already clocked-out"}, status=400)
+        checked_out_at = django_timezone.localtime()
+        with transaction.atomic():
+            Employee._base_manager.select_for_update().get(pk=employee.pk)
+            today = checked_out_at.date()
+            if not AttendanceActivity._base_manager.filter(
+                employee_id=employee,
+                attendance_date__range=(today - timedelta(days=1), today),
+                clock_out__isnull=True,
+            ).exists():
+                return Response({"message": "Already clocked-out"}, status=400)
+            attendance = record_checkout(
+                employee,
+                work_info,
+                checked_out_at,
+                today,
+                checked_out_at.strftime("%H:%M"),
+                punch_evidence,
+            )
+        if attendance is None:
+            return Response({"message": "Already clocked-out"}, status=400)
+        return Response({"message": "Clocked-Out"}, status=200)
 
 
 class AttendanceView(APIView):
